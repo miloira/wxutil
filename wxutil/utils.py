@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 import threading
 import winreg
@@ -25,6 +26,48 @@ import xmltodict
 
 ReadProcessMemory = ctypes.windll.kernel32.ReadProcessMemory
 void_p = ctypes.c_void_p
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
+
+
+def wechat_dump(options: Dict) -> subprocess.CompletedProcess:
+    cmd_args = []
+    for k, v in options.items():
+        if v is not None:
+            cmd_args.append(k)
+            cmd_args.append(v)
+    return subprocess.run([wechat_dump_rs, *cmd_args], capture_output=True)
+
+
+def get_wx_info(version: str = "v3", pid: int = None) -> Dict:
+    if version == "v3":
+        result = wechat_dump({"-p": pid, "--vv": "3"})
+    elif version == "v4":
+        result = wechat_dump({"-p": pid, "--vv": "4"})
+    else:
+        raise ValueError(f"Not support version: {version}")
+
+    stdout = result.stdout.decode()
+    if not stdout:
+        raise Exception("Please login wechat.")
+    else:
+        stderr = result.stderr.decode()
+        if "panicked" in stderr:
+            raise Exception(stderr)
+
+        pid = int(re.findall("ProcessId: (.*?)\n", stdout)[0])
+        version = re.findall("WechatVersion: (.*?)\n", stdout)[0]
+        account = re.findall("AccountName: (.*?)\n", stdout)[0]
+        data_dir = re.findall("DataDir: (.*?)\n", stdout)[0]
+        key = re.findall("key: (.*?)\n", stdout)[0]
+        return {
+            "pid": pid,
+            "version": version,
+            "account": account,
+            "data_dir": data_dir,
+            "key": key
+        }
 
 
 def get_exe_bit(file_path: str) -> int:
