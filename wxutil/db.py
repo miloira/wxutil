@@ -1,0 +1,244 @@
+import os
+import time
+from typing import Callable, Dict, List, Any, Optional, Tuple, Union
+
+from pyee.executor import ExecutorEventEmitter
+from sqlcipher3 import _sqlite3 as sqlite
+
+from logger import logger
+from utils import deserialize_bytes_extra, decompress_compress_content, parse_xml, get_db_key, read_info
+
+TEXT_MESSAGE = (1, 0)  # 文本消息
+IMAGE_MESSAGE = (3, 0)  # 图片消息
+VOICE_MESSAGE = (34, 0)  # 语言消息
+GREETING_MESSAGE = (37, 0)  # 打招呼，加好友时的自我介绍消息
+FRIEND_RECOMMEND_MESSAGE = (42, 0)  # 向别人推荐好友消息
+VIDEO_MESSAGE = (43, 0)  # 视频消息
+EMOTION_MESSAGE = (47, 0)  # 表情消息
+LOCATION_MESSAGE = (48, 0)  # 位置消息
+APP_MESSAGE = (49, 1)  # 特殊文字消息消息（如阿里云盘邀请、飞书日程）
+BILIBILI_SHARE_MESSAGE = (49, 4)  # 分享哔哩哔哩视频消息
+CARD_LINK_MESSAGE = (49, 5)  # 卡片链接消息
+FILE_MESSAGE = (49, 6)  # 文件消息
+GIF_MESSAGE = (49, 8)  # GIF消息
+MERGED_FORWARD_MESSAGE = (49, 19)  # 合并转发聊天记录消息
+MINI_APP_MESSAGE = (49, 33)  # 小程序分享消息
+MINI_APP_2_MESSAGE = (49, 36)  # 小程序分享消息另一种
+MICRO_VIDEO_MESSAGE = (49, 50)  # 微视频消息
+MOMENT_SHARE_MESSAGE = (49, 51)  # 分享朋友圈动态消息
+CHAIN_MESSAGE = (49, 53)  # 接龙消息
+QUOTED_TEXT_MESSAGE = (49, 57)  # 带引用的文本消息
+CHANNEL_LIVE_MESSAGE = (49, 63)  # 视频号直播或回放消息
+SONG_SHARE_MESSAGE = (49, 76)  # 分享歌曲消息
+GROUP_ANNOUNCEMENT_MESSAGE = (49, 87)  # 群公告消息
+CHANNEL_LIVE_2_MESSAGE = (49, 88)  # 视频号直播/直播回放消息
+TRANSFER_MESSAGE = (49, 2000)  # 转账消息
+RED_PACKET_MESSAGE = (49, 2003)  # 红包消息
+VOICE_CALL_MESSAGE = (50, 0)  # 语音电话消息
+FRIEND_RECOMMENDATION_MESSAGE = (65, 0)  # 朋友推荐消息
+SYSTEM_MESSAGE = (10000, 0)  # 系统通知消息
+PAT_MESSAGE = (10000, 4)  # 拍一拍消息
+INVITATION_MESSAGE = (10000, 8000)  # 邀请入群通知消息
+
+
+def get_room_member_wxid(bytes_extra: Dict[str, Any]) -> Union[str, None]:
+    try:
+        return bytes_extra["3"][0]["2"]
+    except Exception:
+        return None
+
+
+def get_message(row: Tuple[Any, ...]) -> Dict[str, Any]:
+    return {
+        "local_id": row[0],
+        "talker_id": row[1],
+        "msg_svr_id": row[2],
+        "type": row[3],
+        "sub_type": row[4],
+        "is_sender": row[5],
+        "create_time": row[6],
+        "sequence": row[7],
+        "status_ex": row[8],
+        "flag_ex": row[9],
+        "status": row[10],
+        "msg_server_seq": row[11],
+        "msg_sequence": row[12],
+        "str_talker": row[13],
+        "str_content": row[14],
+        "display_content": row[15],
+        "reserved_0": row[16],
+        "reserved_1": row[17],
+        "reserved_2": row[18],
+        "reserved_3": row[19],
+        "reserved_4": row[20],
+        "reserved_5": row[21],
+        "reserved_6": row[22],
+        "compress_content": row[23],
+        "bytes_extra": row[24],
+        "bytes_trans": row[25]
+    }
+
+
+class WeChatDB:
+
+    def __init__(self, pid: Optional[int] = None) -> None:
+        result = read_info(pid)
+        if result:
+            self.info = result[0]
+        else:
+            raise Exception("Not found wechat key!")
+        self.pid = self.info["pid"]
+        self.key = self.info["key"]
+        self.data_dir = self.info["file_path"]
+        self.msg_db = self.get_msg_db()
+        self.conn = self.create_connection(rf"Msg\Multi\{self.msg_db}")
+        self.wxid = self.data_dir.split("\\")[-1]
+        self.event_emitter = ExecutorEventEmitter()
+
+    def get_db_path(self, db_name: str) -> str:
+        return os.path.join(self.data_dir, db_name)
+
+    def get_msg_db(self) -> str:
+        with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+            return f.read()
+
+    def create_connection(self, db_name: str) -> sqlite.Connection:
+        conn = sqlite.connect(self.get_db_path(db_name))
+        db_key = get_db_key(self.key, self.get_db_path(db_name), "3")
+        conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
+        conn.execute(f"PRAGMA cipher_page_size = 4096;")
+        conn.execute(f"PRAGMA kdf_iter = 64000;")
+        conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
+        conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
+        return conn
+
+    def get_event(self, row: Optional[Tuple[Any, ...]]) -> Optional[Dict[str, Any]]:
+        if not row:
+            return row
+
+        message = get_message(row)
+        data = {
+            "id": message["local_id"],
+            "msg_id": message["msg_svr_id"],
+            "sequence": message["sequence"],
+            "type": message["type"],
+            "sub_type": message["sub_type"],
+            "is_sender": message["is_sender"],
+            "create_time": message["create_time"],
+            "msg": message["str_content"],
+            "raw_msg": None,
+            "at_user_list": [],
+            "room_wxid": None,
+            "from_wxid": None,
+            "to_wxid": None,
+            "extra": None
+        }
+
+        bytes_extra = deserialize_bytes_extra(message["bytes_extra"])
+        data["extra"] = bytes_extra
+
+        if message["compress_content"] is not None:
+            data["raw_msg"] = decompress_compress_content(message["compress_content"])
+
+        if message["is_sender"] == 1:
+            data["from_wxid"] = self.wxid
+        else:
+            data["from_wxid"] = message["str_talker"]
+
+        if message["str_talker"].endswith("@chatroom"):
+            data["room_wxid"] = message["str_talker"]
+        else:
+            if data["is_sender"] == 1:
+                data["to_wxid"] = message["str_talker"]
+            else:
+                data["to_wxid"] = self.wxid
+
+        if data.get("room_wxid"):
+            if isinstance(bytes_extra, dict) and data["is_sender"] == 0:
+                data["from_wxid"] = get_room_member_wxid(bytes_extra)
+            try:
+                if isinstance(bytes_extra, dict):
+                    idx = 0 if message["is_sender"] == 1 else 1
+                    xml_data = parse_xml(bytes_extra["3"][idx]["2"])
+                    data["at_user_list"] = [
+                        x for x in xml_data["msgsource"].get("atuserlist", "").split(",") if x
+                    ]
+            except Exception:
+                pass
+
+        return data
+
+    def get_recently_messages(self, count: int = 10, order: str = "DESC") -> List[Optional[Dict[str, Any]]]:
+        with self.conn:
+            rows = self.conn.execute("SELECT * FROM MSG ORDER BY localId {} LIMIT ?;".format(order),
+                                     (count,)).fetchall()
+            return [self.get_event(row) for row in rows]
+
+    def get_latest_revoke_message(self) -> Optional[Dict[str, Any]]:
+        with self.conn:
+            row = self.conn.execute(
+                "SELECT * FROM MSG WHERE Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId DESC LIMIT 1;").fetchone()
+            return self.get_event(row)
+
+    def handle(self, events: Union[tuple, list] = (0, 0), once: bool = False) -> Callable[[Callable[..., Any]], None]:
+        def wrapper(func: Callable[..., Any]) -> None:
+            listen = self.event_emitter.on if not once else self.event_emitter.once
+            if isinstance(events, tuple):
+                type, sub_type = events
+                listen(f"{type}:{sub_type}", func)
+            elif isinstance(events, list):
+                for event in events:
+                    type, sub_type = event
+                    listen(f"{type}:{sub_type}", func)
+            else:
+                raise TypeError("events must be tuple or list.")
+
+        return wrapper
+
+    def run(self, period: float = 0.1) -> None:
+        recently_messages = self.get_recently_messages(1)
+        current_local_id = recently_messages[0]["id"] if recently_messages and recently_messages[0] else 0
+        revoke_message = self.get_latest_revoke_message()
+        current_revoke_local_id = revoke_message["id"] if revoke_message else 0
+        logger.info("Start listening...")
+        while True:
+
+            with self.conn:
+                rows = self.conn.execute("SELECT * FROM MSG where localId > ? ORDER BY localId;",
+                                         (current_local_id,)).fetchall()
+                for row in rows:
+                    event = self.get_event(row)
+                    logger.debug(event)
+                    if event:
+                        current_local_id = event["id"]
+                        self.event_emitter.emit(f"0:0", self, event)
+                        self.event_emitter.emit(f"{event['type']}:{event['sub_type']}", self, event)
+
+            with self.conn:
+                rows = self.conn.execute(
+                    "SELECT * FROM MSG WHERE localId > ? AND Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId;",
+                    (current_revoke_local_id,)).fetchall()
+                for row in rows:
+                    event = self.get_event(row)
+                    logger.debug(event)
+                    if event:
+                        current_revoke_local_id = event["id"]
+                        self.event_emitter.emit(f"0:0", self, event)
+                        self.event_emitter.emit(f"{event['type']}:{event['sub_type']}", self, event)
+
+            time.sleep(period)
+
+    def __str__(self) -> str:
+        return f"<WeChatDB pid={repr(self.pid)} wxid={repr(self.wxid)} msg_db={repr(self.msg_db)}>"
+
+
+if __name__ == "__main__":
+    wechat_db = WeChatDB()
+
+
+    @wechat_db.handle(TEXT_MESSAGE)
+    def on_message(wechat_db_listener: WeChatDB, event: Dict[str, Any]) -> None:
+        print(wechat_db_listener, event)
+
+
+    wechat_db.run()
