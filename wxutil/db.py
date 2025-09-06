@@ -114,7 +114,7 @@ class WeChatDB:
 
     def get_event(self, row: Optional[Tuple[Any, ...]]) -> Optional[Dict[str, Any]]:
         if not row:
-            return row
+            return None
 
         message = get_message(row)
         data = {
