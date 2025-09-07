@@ -49,6 +49,7 @@ class WeChatDB:
         self.key = self.info["key"]
         self.data_dir = self.info["data_dir"]
         self.msg_db = self.get_msg_db()
+        self.msg_db_wal = self.get_db_path(rf"db_storage\message\{self.msg_db}-wal")
         self.conn = self.create_connection(rf"db_storage\message\{self.msg_db}")
         self.wxid = self.data_dir.rstrip("\\").split("\\")[-1][:-5]
         self.event_emitter = ExecutorEventEmitter()
@@ -229,49 +230,54 @@ class WeChatDB:
             msg_table_revoke_local_id[msg_table] = current_revoke_local_id
 
         logger.info("Start listening...")
-        for _ in watch(self.get_db_path(rf"db_storage\message\{self.msg_db}-wal")):
-            current_msg_tables = self.get_msg_tables()
-            new_msg_tables = list(set(current_msg_tables) - set(self.msg_tables))
-            self.msg_tables = current_msg_tables
-            for new_msg_table in new_msg_tables:
-                msg_table_max_local_id[new_msg_table] = 0
-                msg_table_revoke_local_id[new_msg_table] = 0
+        last_mtime = os.path.getmtime(self.msg_db_wal)
+        while True:
+            mtime = os.path.getmtime(self.msg_db_wal)
+            if mtime != last_mtime:
+                current_msg_tables = self.get_msg_tables()
+                new_msg_tables = list(set(current_msg_tables) - set(self.msg_tables))
+                self.msg_tables = current_msg_tables
+                for new_msg_table in new_msg_tables:
+                    msg_table_max_local_id[new_msg_table] = 0
+                    msg_table_revoke_local_id[new_msg_table] = 0
 
-            for table, max_local_id in msg_table_max_local_id.items():
-                with self.conn:
-                    rows = self.conn.execute("""
-                    SELECT 
-                        m.*,
-                        n.user_name AS sender
-                    FROM {} AS m
-                    LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                    WHERE local_id > ?;
-                    """.format(table), (max_local_id,)).fetchall()
-                    for row in rows:
-                        event = self.get_event(table, row)
-                        logger.debug(event)
-                        if event:
-                            msg_table_max_local_id[table] = event["id"]
-                            self.event_emitter.emit(f"0", self, event)
-                            self.event_emitter.emit(f"{event['type']}", self, event)
+                for table, max_local_id in msg_table_max_local_id.items():
+                    with self.conn:
+                        rows = self.conn.execute("""
+                        SELECT 
+                            m.*,
+                            n.user_name AS sender
+                        FROM {} AS m
+                        LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
+                        WHERE local_id > ?;
+                        """.format(table), (max_local_id,)).fetchall()
+                        for row in rows:
+                            event = self.get_event(table, row)
+                            logger.debug(event)
+                            if event:
+                                msg_table_max_local_id[table] = event["id"]
+                                self.event_emitter.emit(f"0", self, event)
+                                self.event_emitter.emit(f"{event['type']}", self, event)
 
-            for table, revoke_local_id in msg_table_revoke_local_id.items():
-                with self.conn:
-                    rows = self.conn.execute("""
-                    SELECT 
-                        m.*,
-                        n.user_name AS sender
-                    FROM {} AS m
-                    LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                    WHERE local_type = 10000 AND status = 4 AND local_id > ?;
-                    """.format(table), (revoke_local_id,)).fetchall()
-                    for row in rows:
-                        event = self.get_event(table, row)
-                        logger.debug(event)
-                        if event:
-                            msg_table_revoke_local_id[table] = event["id"]
-                            self.event_emitter.emit(f"0", self, event)
-                            self.event_emitter.emit(f"{event['type']}", self, event)
+                for table, revoke_local_id in msg_table_revoke_local_id.items():
+                    with self.conn:
+                        rows = self.conn.execute("""
+                        SELECT 
+                            m.*,
+                            n.user_name AS sender
+                        FROM {} AS m
+                        LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
+                        WHERE local_type = 10000 AND status = 4 AND local_id > ?;
+                        """.format(table), (revoke_local_id,)).fetchall()
+                        for row in rows:
+                            event = self.get_event(table, row)
+                            logger.debug(event)
+                            if event:
+                                msg_table_revoke_local_id[table] = event["id"]
+                                self.event_emitter.emit(f"0", self, event)
+                                self.event_emitter.emit(f"{event['type']}", self, event)
+
+                last_mtime = mtime
 
             time.sleep(period)
 

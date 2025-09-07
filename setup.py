@@ -28,7 +28,6 @@ REQUIRED = [
     "pyee",
     "pycryptodome",
     "sqlcipher3-wheels",
-    "watchgod",
     "xmltodict",
     "yara-python",
 ]
