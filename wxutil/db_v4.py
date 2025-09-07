@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, NoReturn, Tuple
 
 from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
@@ -23,10 +23,7 @@ def decompress(data):
 class WeChatDB:
 
     def __init__(self, pid: Optional[int] = None) -> None:
-        # self.info = get_wx_info("v4", pid)
-        self.info = {'pid': 11736, 'version': '4.0.3.22', 'account': 'm690126048/wxid_g7leryvu7kqm22',
-                     'data_dir': 'C:\\Users\\69012\\Documents\\xwechat_files\\wxid_g7leryvu7kqm22_a246\\',
-                     'key': 'b2a1c68323c14ebbb18ce6be0b91b12ccef961d15e504e3eb1d1b58bf9b058f0'}
+        self.info = get_wx_info("v4", pid)
         self.pid = self.info["pid"]
         self.key = self.info["key"]
         self.data_dir = self.info["data_dir"]
@@ -51,7 +48,6 @@ class WeChatDB:
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name))
         db_key = get_db_key(self.key, self.get_db_path(db_name), "4")
-        print(db_key)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
         conn.execute(f"PRAGMA cipher_page_size = 4096;")
         conn.execute(f"PRAGMA kdf_iter = 256000;")
@@ -59,7 +55,7 @@ class WeChatDB:
         conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA512;")
         return conn
 
-    def get_message(self, row):
+    def get_message(self, row: Tuple) -> Dict:
         return {
             "local_id": row[0],
             "server_id": row[1],
@@ -81,7 +77,7 @@ class WeChatDB:
             "sender": row[17]
         }
 
-    def get_event(self, table, row):
+    def get_event(self, table: str, row: Optional[Tuple]) -> Optional[Dict]:
         if not row:
             return None
 
@@ -105,26 +101,26 @@ class WeChatDB:
 
         if message["source"]:
             data["raw_msg"] = parse_xml(decompress(message["source"]))
-            if data["raw_msg"].get("msgsource", {}).get("atuserlist"):
+            if data["raw_msg"] and data["raw_msg"].get("msgsource") and data["raw_msg"]["msgsource"].get("atuserlist"):
                 data["at_user_list"] = data["raw_msg"]["msgsource"]["atuserlist"].split(",")
 
         if data["is_sender"] == 1:
-            wxid = self.id_to_wxid(message["packed_info_data"][-1])
+            wxid = self.id_to_wxid(message["packed_info_data"][:4][-1])
             if wxid.endswith("@chatroom"):
                 data["room_wxid"] = wxid
             else:
                 data["to_wxid"] = wxid
         else:
-            wxid = self.id_to_wxid(message["packed_info_data"][1])
+            wxid = self.id_to_wxid(message["packed_info_data"][:4][1])
             if wxid.endswith("@chatroom"):
                 data["room_wxid"] = wxid
             else:
-                data["to_wxid"] = self.id_to_wxid(message["packed_info_data"][-1])
+                data["to_wxid"] = self.id_to_wxid(message["packed_info_data"][:4][-1])
 
         return data
 
-    def get_recently_messages(self, table_name: str, count: int = 10, order: str = "DESC") -> List[
-        Optional[Dict[str, Any]]]:
+    def get_recently_messages(self, table: str, count: int = 10, order: str = "DESC") -> List[
+        Optional[Dict]]:
         with self.conn:
             rows = self.conn.execute(
                 """
@@ -134,11 +130,27 @@ class WeChatDB:
                 FROM {} AS m
                 LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
                 ORDER BY m.local_id {}
-                LIMIT ?;""".format(table_name, order),
+                LIMIT ?;""".format(table, order),
                 (count,)).fetchall()
-            return [self.get_event(table_name, row) for row in rows]
+            return [self.get_event(table, row) for row in rows]
 
-    def get_msg_tables(self):
+    def get_latest_revoke_message(self, table: str) -> Optional[Dict]:
+        with self.conn:
+            row = self.conn.execute("""
+            SELECT 
+                m.*,
+                n.user_name AS sender
+            FROM {} AS m
+            LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
+            WHERE m.local_type = 10000
+            AND m.status = 4
+            ORDER BY m.local_id DESC 
+            LIMIT 1;""".format(table)).fetchone()
+            if not row:
+                return
+            return self.get_event(table, row)
+
+    def get_msg_tables(self) -> List[str]:
         with self.conn:
             rows = self.conn.execute("""
             SELECT 
@@ -148,7 +160,7 @@ class WeChatDB:
             AND name LIKE 'Msg%';""").fetchall()
             return [row[0] for row in rows]
 
-    def id_to_wxid(self, id):
+    def id_to_wxid(self, id: int) -> Optional[str]:
         with self.conn:
             row = self.conn.execute("""
             SELECT user_name FROM Name2Id WHERE rowid = ?;
@@ -157,18 +169,18 @@ class WeChatDB:
                 return
             return row[0]
 
-    def run(self, period=0.1):
+    def run(self, period: float = 0.1) -> NoReturn:
         msg_table_max_local_id = {}
+        msg_table_revoke_local_id = {}
         self.msg_tables = self.get_msg_tables()
         for msg_table in self.msg_tables:
-            msg_table_max_local_id[msg_table] = 0
+            recently_messages = self.get_recently_messages(msg_table, 1)
+            current_max_local_id = recently_messages[0]["id"] if recently_messages and recently_messages[0] else 0
+            msg_table_max_local_id[msg_table] = current_max_local_id
 
-        for table_name in msg_table_max_local_id:
-            recently_messages = self.get_recently_messages(table_name, 1)
-            current_local_id = recently_messages[0]["id"] if recently_messages and recently_messages[0] else 0
-            msg_table_max_local_id[table_name] = current_local_id
-
-        print(msg_table_max_local_id)
+            latest_revoke_message = self.get_latest_revoke_message(msg_table)
+            current_revoke_local_id = latest_revoke_message["id"] if latest_revoke_message else 0
+            msg_table_revoke_local_id[msg_table] = current_revoke_local_id
 
         logger.info("Start listening...")
         while True:
@@ -176,9 +188,10 @@ class WeChatDB:
             new_msg_tables = list(set(current_msg_tables) - set(self.msg_tables))
             for msg_table in new_msg_tables:
                 msg_table_max_local_id[msg_table] = 0
+                msg_table_revoke_local_id[msg_table] = 0
             self.msg_tables = current_msg_tables
 
-            for table_name, current_local_id in msg_table_max_local_id.items():
+            for table, max_local_id in msg_table_max_local_id.items():
                 with self.conn:
                     rows = self.conn.execute("""
                     SELECT 
@@ -186,12 +199,30 @@ class WeChatDB:
                         n.user_name AS sender
                     FROM {} AS m
                     LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                    WHERE local_id > ?;""".format(table_name), (current_local_id,)).fetchall()
+                    WHERE local_id > ?;""".format(table), (max_local_id,)).fetchall()
                     for row in rows:
-                        event = self.get_event(table_name, row)
+                        event = self.get_event(table, row)
                         logger.debug(event)
                         if event:
-                            msg_table_max_local_id[table_name] = event["id"]
+                            msg_table_max_local_id[table] = event["id"]
+                            self.event_emitter.emit(f"0", self, event)
+                            self.event_emitter.emit(f"{event['type']}", self, event)
+
+            for table, revoke_local_id in msg_table_revoke_local_id.items():
+                with self.conn:
+                    rows = self.conn.execute("""
+                    SELECT 
+                        m.*,
+                        n.user_name AS sender
+                    FROM {} AS m
+                    LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
+                    WHERE local_type = 10000 AND status = 4 AND local_id > ?;""".format(table),
+                                             (revoke_local_id,)).fetchall()
+                    for row in rows:
+                        event = self.get_event(table, row)
+                        logger.debug(event)
+                        if event:
+                            msg_table_revoke_local_id[table] = event["id"]
                             self.event_emitter.emit(f"0", self, event)
                             self.event_emitter.emit(f"{event['type']}", self, event)
 
