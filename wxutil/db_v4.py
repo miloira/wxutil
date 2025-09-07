@@ -8,7 +8,6 @@ from sqlcipher3 import dbapi2 as sqlite
 from wxutil.logger import logger
 from wxutil.utils import get_db_key, get_wx_info, parse_xml, decompress
 
-UNKNOWN_MESSAGE = -1
 ALL_MESSAGE = 0
 TEXT_MESSAGE = 1
 TEXT2_MESSAGE = 2

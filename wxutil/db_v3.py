@@ -8,6 +8,7 @@ from sqlcipher3 import _sqlite3 as sqlite
 from logger import logger
 from utils import deserialize_bytes_extra, decompress_compress_content, parse_xml, get_db_key, read_info
 
+ALL_MESSAGE = (0, 0)
 TEXT_MESSAGE = (1, 0)  # 文本消息
 IMAGE_MESSAGE = (3, 0)  # 图片消息
 VOICE_MESSAGE = (34, 0)  # 语言消息
