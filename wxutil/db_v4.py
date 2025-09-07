@@ -6,7 +6,7 @@ from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
 
 from wxutil.logger import logger
-from wxutil.utils import get_db_key, get_wx_info
+from wxutil.utils import get_db_key, get_wx_info, parse_xml
 
 import zstandard
 
@@ -23,13 +23,16 @@ def decompress(data):
 class WeChatDB:
 
     def __init__(self, pid: Optional[int] = None) -> None:
-        self.info = get_wx_info("v4", pid)
+        # self.info = get_wx_info("v4", pid)
+        self.info = {'pid': 11736, 'version': '4.0.3.22', 'account': 'm690126048/wxid_g7leryvu7kqm22',
+                     'data_dir': 'C:\\Users\\69012\\Documents\\xwechat_files\\wxid_g7leryvu7kqm22_a246\\',
+                     'key': 'b2a1c68323c14ebbb18ce6be0b91b12ccef961d15e504e3eb1d1b58bf9b058f0'}
         self.pid = self.info["pid"]
         self.key = self.info["key"]
         self.data_dir = self.info["data_dir"]
         self.msg_db = self.get_msg_db()
         self.conn = self.create_connection(rf"db_storage\message\{self.msg_db}")
-        self.wxid = self.data_dir.split("\\")[-1]
+        self.wxid = self.data_dir.rstrip("\\").split("\\")[-1][:-5]
         self.event_emitter = ExecutorEventEmitter()
 
     def get_db_path(self, db_name: str) -> str:
@@ -48,6 +51,7 @@ class WeChatDB:
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name))
         db_key = get_db_key(self.key, self.get_db_path(db_name), "4")
+        print(db_key)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
         conn.execute(f"PRAGMA cipher_page_size = 4096;")
         conn.execute(f"PRAGMA kdf_iter = 256000;")
@@ -89,24 +93,34 @@ class WeChatDB:
             "sequence": message["sort_seq"],
             "type": message["local_type"],
             "sub_type": None,
-            "is_sender": message["origin_source"],
+            "is_sender": 1 if message["sender"] == self.wxid else 0,
             "create_time": message["create_time"],
             "msg": decompress(message["message_content"]),
             "raw_msg": None,
             "at_user_list": [],
-            "room_wxid": self.id_to_wxid(message["packed_info_data"][1]),
+            "room_wxid": None,
             "from_wxid": message["sender"],
             "to_wxid": None,
             "extra": message["packed_info_data"]
         }
 
-        if message["source"] is not None:
-            data["raw_msg"] = decompress(message["source"])
+        if message["source"]:
+            data["raw_msg"] = parse_xml(decompress(message["source"]))
+            if data["raw_msg"].get("msgsource", {}).get("atuserlist"):
+                data["at_user_list"] = data["raw_msg"]["msgsource"]["atuserlist"].split(",")
 
         if data["is_sender"] == 1:
-            data["room_wxid"] = self.id_to_wxid(message["packed_info_data"][-1])
+            wxid = self.id_to_wxid(message["packed_info_data"][-1])
+            if wxid.endswith("@chatroom"):
+                data["room_wxid"] = wxid
+            else:
+                data["to_wxid"] = wxid
         else:
-            data["room_wxid"] = self.id_to_wxid(message["packed_info_data"][1])
+            wxid = self.id_to_wxid(message["packed_info_data"][1])
+            if wxid.endswith("@chatroom"):
+                data["room_wxid"] = wxid
+            else:
+                data["to_wxid"] = self.id_to_wxid(message["packed_info_data"][-1])
 
         return data
 
