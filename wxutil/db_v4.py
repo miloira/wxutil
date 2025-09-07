@@ -4,7 +4,6 @@ from typing import Optional, List, Dict, NoReturn, Tuple, Union, Callable, Any
 
 from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
-from watchgod import watch
 
 from wxutil.logger import logger
 from wxutil.utils import get_db_key, get_wx_info, parse_xml, decompress
