@@ -33,12 +33,12 @@ SONG_SHARE_MESSAGE = (49, 76)  # 分享歌曲消息
 GROUP_ANNOUNCEMENT_MESSAGE = (49, 87)  # 群公告消息
 CHANNEL_LIVE_2_MESSAGE = (49, 88)  # 视频号直播/直播回放消息
 TRANSFER_MESSAGE = (49, 2000)  # 转账消息
-RED_PACKET_MESSAGE = (49, 2003)  # 红包消息
-VOICE_CALL_MESSAGE = (50, 0)  # 语音电话消息
+RED_ENVELOPE_MESSAGE = (49, 2003)  # 红包消息
+VOIP_MESSAGE = (50, 0)  # 语音电话消息
 FRIEND_RECOMMENDATION_MESSAGE = (65, 0)  # 朋友推荐消息
 SYSTEM_MESSAGE = (10000, 0)  # 系统通知消息
 PAT_MESSAGE = (10000, 4)  # 拍一拍消息
-INVITATION_MESSAGE = (10000, 8000)  # 邀请入群通知消息
+GROUP_INVITATION_MESSAGE = (10000, 8000)  # 邀请入群通知消息
 
 
 def get_room_member_wxid(bytes_extra: Dict[str, Any]) -> Union[str, None]:
