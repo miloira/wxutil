@@ -210,7 +210,7 @@ class WeChatDB:
                 for event in events:
                     listen(str(event), func)
             else:
-                raise TypeError("events must be tuple or list.")
+                raise TypeError("events must be int or list.")
 
         return wrapper
 
