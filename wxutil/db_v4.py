@@ -92,7 +92,6 @@ class WeChatDB:
             "msg_id": message["server_id"],
             "sequence": message["sort_seq"],
             "type": message["local_type"],
-            "sub_type": None,
             "is_sender": 1 if message["sender"] == self.wxid else 0,
             "create_time": message["create_time"],
             "msg": decompress(message["message_content"]),
