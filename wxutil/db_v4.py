@@ -1,12 +1,44 @@
 import os
 import time
-from typing import Optional, List, Dict, NoReturn, Tuple
+from typing import Optional, List, Dict, NoReturn, Tuple, Union, Callable, Any
 
 from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
 
 from wxutil.logger import logger
-from wxutil.utils import get_db_key, get_wx_info, parse_xml
+from wxutil.utils import get_db_key, get_wx_info, parse_xml, decompress
+
+UNKNOWN_MESSAGE = -1
+ALL_MESSAGE = 0
+TEXT_MESSAGE = 1
+TEXT2_MESSAGE = 2
+IMAGE_MESSAGE = 3
+VOICE_MESSAGE = 34
+BUSINESS_CARD_MESSAGE = 42
+VIDEO_MESSAGE = 43
+EMOJI_MESSAGE = 47
+POSITION_MESSAGE = 48
+VOIP_MESSAGE = 50
+OPEN_IM_BCARD_MESSAGE = 66
+SYSTEM_MESSAGE = 10000
+FILE_MESSAGE = 25769803825
+FILE_WAIT_MESSAGE = 317827579953
+LINK_MESSAGE = 21474836529
+LINK2_MESSAGE = 292057776177
+MUSIC_MESSAGE = 12884901937
+LINK4_MESSAGE = 4294967345
+LINK5_MESSAGE = 326417514545
+LINK6_MESSAGE = 17179869233
+RED_ENVELOPE_MESSAGE = 8594229559345
+TRANSFER_MESSAGE = 8589934592049
+QUOTE_MESSAGE = 244813135921
+MERGED_MESSAGES_MESSAGE = 81604378673
+APPLET_MESSAGE = 141733920817
+APPLET2_MESSAGE = 154618822705
+WECHAT_VIDEO_MESSAGE = 219043332145
+FAV_NOTE_MESSAGE = 103079215153
+PAT_MESSAGE = 266287972401
+PUBLIC_ANNOUNCEMENT_MESSAGE = 373662154801
 
 
 class WeChatDB:
@@ -80,7 +112,7 @@ class WeChatDB:
             "is_sender": 1 if message["sender"] == self.wxid else 0,
             "create_time": message["create_time"],
             "msg": decompress(message["message_content"]),
-            "raw_msg": None,
+            "meta": None,
             "at_user_list": [],
             "room_wxid": None,
             "from_wxid": message["sender"],
@@ -89,9 +121,15 @@ class WeChatDB:
         }
 
         if message["source"]:
-            data["raw_msg"] = parse_xml(decompress(message["source"]))
-            if data["raw_msg"] and data["raw_msg"].get("msgsource") and data["raw_msg"]["msgsource"].get("atuserlist"):
-                data["at_user_list"] = data["raw_msg"]["msgsource"]["atuserlist"].split(",")
+            data["meta"] = parse_xml(decompress(message["source"]))
+            if data["meta"] and data["meta"].get("msgsource") and data["meta"]["msgsource"].get("atuserlist"):
+                data["at_user_list"] = data["meta"]["msgsource"]["atuserlist"].split(",")
+
+        if data["type"] != 1:
+            try:
+                data["msg"] = parse_xml(data["msg"])
+            except Exception:
+                pass
 
         if data["is_sender"] == 1:
             wxid = self.id_to_wxid(message["packed_info_data"][:4][-1])
@@ -158,6 +196,19 @@ class WeChatDB:
                 return
             return row[0]
 
+    def handle(self, events: Union[int, list] = 0, once: bool = False) -> Callable[[Callable[..., Any]], None]:
+        def wrapper(func: Callable[..., Any]) -> None:
+            listen = self.event_emitter.on if not once else self.event_emitter.once
+            if isinstance(events, int):
+                listen(str(events), func)
+            elif isinstance(events, list):
+                for event in events:
+                    listen(str(event), func)
+            else:
+                raise TypeError("events must be tuple or list.")
+
+        return wrapper
+
     def run(self, period: float = 0.1) -> NoReturn:
         msg_table_max_local_id = {}
         msg_table_revoke_local_id = {}
@@ -219,6 +270,13 @@ class WeChatDB:
 
 
 wechat_db = WeChatDB()
+
+
+@wechat_db.handle(TEXT_MESSAGE)
+def _(wechat_db, event):
+    print(event)
+
+
 wechat_db.run()
 
 # db_name = r"C:\Users\69012\Documents\xwechat_files\wxid_g7leryvu7kqm22_a246\db_storage\message\message_0.db"
