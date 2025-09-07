@@ -156,7 +156,8 @@ class WeChatDB:
                 FROM {} AS m
                 LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
                 ORDER BY m.local_id {}
-                LIMIT ?;""".format(table, order),
+                LIMIT ?;
+                """.format(table, order),
                 (count,)).fetchall()
             return [self.get_event(table, row) for row in rows]
 
@@ -171,7 +172,8 @@ class WeChatDB:
             WHERE m.local_type = 10000
             AND m.status = 4
             ORDER BY m.local_id DESC 
-            LIMIT 1;""".format(table)).fetchone()
+            LIMIT 1;
+            """.format(table)).fetchone()
             if not row:
                 return
             return self.get_event(table, row)
@@ -183,13 +185,17 @@ class WeChatDB:
                 name
             FROM sqlite_master
             WHERE type='table'
-            AND name LIKE 'Msg%';""").fetchall()
+            AND name LIKE 'Msg%';
+            """).fetchall()
             return [row[0] for row in rows]
 
     def id_to_wxid(self, id: int) -> Optional[str]:
         with self.conn:
             row = self.conn.execute("""
-            SELECT user_name FROM Name2Id WHERE rowid = ?;
+            SELECT
+                user_name 
+            FROM Name2Id 
+            WHERE rowid = ?;
             """, (id,)).fetchone()
             if not row:
                 return
@@ -238,7 +244,8 @@ class WeChatDB:
                         n.user_name AS sender
                     FROM {} AS m
                     LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                    WHERE local_id > ?;""".format(table), (max_local_id,)).fetchall()
+                    WHERE local_id > ?;
+                    """.format(table), (max_local_id,)).fetchall()
                     for row in rows:
                         event = self.get_event(table, row)
                         logger.debug(event)
@@ -255,8 +262,8 @@ class WeChatDB:
                         n.user_name AS sender
                     FROM {} AS m
                     LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                    WHERE local_type = 10000 AND status = 4 AND local_id > ?;""".format(table),
-                                             (revoke_local_id,)).fetchall()
+                    WHERE local_type = 10000 AND status = 4 AND local_id > ?;
+                    """.format(table),(revoke_local_id,)).fetchall()
                     for row in rows:
                         event = self.get_event(table, row)
                         logger.debug(event)
