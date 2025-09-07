@@ -4,6 +4,7 @@ from typing import Optional, List, Dict, NoReturn, Tuple, Union, Callable, Any
 
 from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
+from watchgod import watch
 
 from wxutil.logger import logger
 from wxutil.utils import get_db_key, get_wx_info, parse_xml, decompress
@@ -228,13 +229,13 @@ class WeChatDB:
             msg_table_revoke_local_id[msg_table] = current_revoke_local_id
 
         logger.info("Start listening...")
-        while True:
+        for _ in watch(self.get_db_path(rf"db_storage\message\{self.msg_db}-wal")):
             current_msg_tables = self.get_msg_tables()
             new_msg_tables = list(set(current_msg_tables) - set(self.msg_tables))
-            for msg_table in new_msg_tables:
-                msg_table_max_local_id[msg_table] = 0
-                msg_table_revoke_local_id[msg_table] = 0
             self.msg_tables = current_msg_tables
+            for new_msg_table in new_msg_tables:
+                msg_table_max_local_id[new_msg_table] = 0
+                msg_table_revoke_local_id[new_msg_table] = 0
 
             for table, max_local_id in msg_table_max_local_id.items():
                 with self.conn:
