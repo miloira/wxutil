@@ -263,7 +263,7 @@ class WeChatDB:
                     FROM {} AS m
                     LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
                     WHERE local_type = 10000 AND status = 4 AND local_id > ?;
-                    """.format(table),(revoke_local_id,)).fetchall()
+                    """.format(table), (revoke_local_id,)).fetchall()
                     for row in rows:
                         event = self.get_event(table, row)
                         logger.debug(event)
@@ -273,6 +273,9 @@ class WeChatDB:
                             self.event_emitter.emit(f"{event['type']}", self, event)
 
             time.sleep(period)
+
+    def __str__(self) -> str:
+        return f"<WeChatDB pid={repr(self.pid)} wxid={repr(self.wxid)} msg_db={repr(self.msg_db)}>"
 
 
 wechat_db = WeChatDB()
