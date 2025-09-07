@@ -8,17 +8,6 @@ from sqlcipher3 import dbapi2 as sqlite
 from wxutil.logger import logger
 from wxutil.utils import get_db_key, get_wx_info, parse_xml
 
-import zstandard
-
-
-def decompress(data):
-    try:
-        dctx = zstandard.ZstdDecompressor()
-        x = dctx.decompress(data).strip(b"\x00").strip()
-        return x.decode("utf-8").strip()
-    except:
-        return data
-
 
 class WeChatDB:
 

@@ -23,6 +23,7 @@ import yara
 import blackboxprotobuf
 import lz4.block
 import xmltodict
+import zstandard
 
 ReadProcessMemory = ctypes.windll.kernel32.ReadProcessMemory
 void_p = ctypes.c_void_p
@@ -674,6 +675,15 @@ def decompress_compress_content(data: Optional[bytes]) -> str:
         return uncompressed_data
     except Exception:
         return data.decode("utf-8", errors="ignore")
+
+
+def decompress(data):
+    try:
+        dctx = zstandard.ZstdDecompressor()
+        x = dctx.decompress(data).strip(b"\x00").strip()
+        return x.decode("utf-8").strip()
+    except:
+        return data
 
 
 import struct
