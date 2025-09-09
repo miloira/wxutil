@@ -1123,7 +1123,57 @@ def decode_image(src_file: str, output_path: str = ".") -> Tuple[str, str]:
     return str(src_file.absolute()), str(image_filename.absolute())
 
 
+"""
+ Description: 修改微信内存版本, 原理参考: https://blog.csdn.net/Scoful/article/details/139330910
+"""
+
+import os
+
+import pymem
+
+WECHAT_VERSION_OFFSET = {
+    "3.6.0.18": [0x22300E0, 0x223D90C, 0x223D9E8, 0x2253E4C, 0x2255AA4, 0x22585D4]
+}
+
+
+def modify_wechat_version(old_version: str, new_version: str) -> None:
+    try:
+        pm = pymem.Pymem("WeChat.exe")
+    except Exception as e:
+        print(f"{e}, 请确认微信已打开")
+        return
+
+    WeChatWinDll = pymem.process.module_from_name(
+        pm.process_handle, "WeChatWin.dll"
+    ).lpBaseOfDll
+    original_version_hex = version_to_hex(old_version)
+    new_version_hex = version_to_hex(new_version)
+
+    for offset in WECHAT_VERSION_OFFSET[old_version]:
+        addr = WeChatWinDll + offset
+        addr_value = pm.read_uint(addr)
+        if addr_value == original_version_hex:
+            # Write the new version hex to the memory
+            pm.write_uint(addr, new_version_hex)
+
+    print("微信版本修改成功")
+
+
+def version_to_hex(version: str) -> int:
+    result = "0x6"
+    version_list = version.split(".")
+
+    for i in range(len(version_list)):
+        if i == 0:
+            result += f"{int(version_list[i]):x}"
+            continue
+        result += f"{int(version_list[i]):02x}"
+
+    return int(result, 16)
+
+
 if __name__ == "__main__":
+    modify_wechat_version("3.6.0.18", "3.9.12.15")
     # print(read_info())
     weixin_dir = 'C:\\Users\\69012\\Documents\\WeChat Files\\wxid_g7leryvu7kqm22'
     xor_key, aes_key = find_key(pathlib.Path(weixin_dir), version=3)
