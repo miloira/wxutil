@@ -32,6 +32,78 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
 
 
+def get_wechat_install_path(version=3):
+    if version == 3:
+        reg_path = r"Software\Tencent\WeChat"
+    elif version == 4:
+        reg_path = r"Software\Tencent\Weixin"
+    else:
+        raise ValueError(f"Not support WeChat version: {version}")
+
+    for KEY in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
+        try:
+            key = winreg.OpenKey(KEY, reg_path)
+            install_path, _ = winreg.QueryValueEx(key, "InstallPath")
+            winreg.CloseKey(key)
+            return install_path
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            raise e
+
+
+def to_wechat_v3_version(value):
+    """输入整数或十六进制字符串，返回 x.y.z.w 格式版本号"""
+    a = (value >> 24) & 0xFF
+    b = (value >> 16) & 0xFF
+    c = (value >> 8) & 0xFF
+    d = value & 0xFF
+    if a >= 0x60:
+        a = a - 0x60
+    return f"{a}.{b}.{c}.{d}"
+
+
+def to_wechat_v4_version(value):
+    version = hex(value)
+    ver_str = version[5:]
+    major = int(ver_str[0], 16)
+    minor = int(ver_str[1], 16)
+    build = int(ver_str[2], 16)
+    patch = int(ver_str[3:], 16)
+    return f"{major}.{minor}.{build}.{patch}"
+
+
+def to_wechat_version(version=3):
+    if version == 3:
+        return to_wechat_v3_version
+    elif version == 4:
+        return to_wechat_v4_version
+    else:
+        raise ValueError(f"Not support WeChat version: {version}")
+
+
+def get_wechat_version(version=3):
+    if version == 3:
+        reg_path = r"Software\Tencent\WeChat"
+        to_wechat_version = to_wechat_v3_version
+    elif version == 4:
+        reg_path = r"Software\Tencent\Weixin"
+        to_wechat_version = to_wechat_v4_version
+    else:
+        raise ValueError(f"Not support WeChat version: {version}")
+
+    for KEY in [winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE]:
+        try:
+            key = winreg.OpenKey(KEY, reg_path)
+            version, _ = winreg.QueryValueEx(key, "Version")
+            winreg.CloseKey(key)
+            return to_wechat_version(version)
+        except FileNotFoundError:
+            continue
+        except Exception as e:
+            raise e
+
+
 def wechat_dump(options: Dict) -> subprocess.CompletedProcess:
     cmd_args = []
     for k, v in options.items():
@@ -1126,11 +1198,6 @@ def decode_image(src_file: str, output_path: str = ".") -> Tuple[str, str]:
 """
  Description: 修改微信内存版本, 原理参考: https://blog.csdn.net/Scoful/article/details/139330910
 """
-
-import os
-
-import pymem
-
 WECHAT_VERSION_OFFSET = {
     "3.6.0.18": [0x22300E0, 0x223D90C, 0x223D9E8, 0x2253E4C, 0x2255AA4, 0x22585D4]
 }
