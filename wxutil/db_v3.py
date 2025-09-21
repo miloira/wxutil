@@ -567,13 +567,4 @@ class WeChatDB:
 
 if __name__ == "__main__":
     wechat_db = WeChatDB()
-    wechat_db.create_connection("Msg/OpenIMContact.db")
-    print(wechat_db.get_contacts())
-    # print(wechat_db.get_contact("xiaomengxiang001"))
-    # print(wechat_db.get_rooms())
-    # print(wechat_db.get_labels())
-    # print(wechat_db.get_room_member_wxids("38806094601@chatroom"))
-    # print(wechat_db.get_contacts())
-    # for room in wechat_db.get_rooms():
-    #     print(wechat_db.get_room(room["wxid"], True))
-    # print(wechat_db.get_room_members("47816794157@chatroom"))
+    wechat_db.run()
