@@ -42,6 +42,64 @@ PAT_MESSAGE = (10000, 4)  # 拍一拍消息
 GROUP_INVITATION_MESSAGE = (10000, 8000)  # 邀请入群通知消息
 
 
+def decode_extra_buf(extra_buf_content: bytes):
+    data = {
+        "country": "",
+        "province": "",
+        "city": "",
+        "signature": "",
+        "phone": "",
+        "sex": ""
+    }
+    if not extra_buf_content:
+        return data
+    trunk_name = {
+        b"\x46\xCF\x10\xC4": "个性签名",
+        b"\xA4\xD9\x02\x4A": "国家",
+        b"\xE2\xEA\xA8\xD1": "省份",
+        b"\x1D\x02\x5B\xBF": "市区",
+        # b"\x81\xAE\x19\xB4": "朋友圈背景url",
+        # b"\xF9\x17\xBC\xC0": "公司名称",
+        # b"\x4E\xB9\x6D\x85": "企业微信属性",
+        # b"\x0E\x71\x9F\x13": "备注图片",
+        b"\x75\x93\x78\xAD": "手机号",
+        b"\x74\x75\x2C\x06": "性别",
+    }
+    res = {"手机号": ""}
+    off = 0
+    try:
+        for key in trunk_name:
+            trunk_head = trunk_name[key]
+            try:
+                off = extra_buf_content.index(key) + 4
+            except:
+                pass
+            char = extra_buf_content[off: off + 1]
+            off += 1
+            if char == b"\x04":  # 四个字节的int，小端序
+                int_content = extra_buf_content[off: off + 4]
+                off += 4
+                int_content = int.from_bytes(int_content, "little")
+                res[trunk_head] = int_content
+            elif char == b"\x18":  # utf-16字符串
+                length_content = extra_buf_content[off: off + 4]
+                off += 4
+                length_content = int.from_bytes(length_content, "little")
+                strContent = extra_buf_content[off: off + length_content]
+                off += length_content
+                res[trunk_head] = strContent.decode("utf-16").rstrip("\x00")
+        return {
+            "country": res["国家"],
+            "province": res["省份"],
+            "city": res["市区"],
+            "signature": res["个性签名"],
+            "phone": res["手机号"],
+            "sex": res["性别"]
+        }
+    except Exception:
+        return data
+
+
 def get_room_member_wxid(bytes_extra: Dict[str, Any]) -> Union[str, None]:
     try:
         return bytes_extra["3"][0]["2"]
@@ -112,6 +170,280 @@ class WeChatDB:
         conn.execute(f"PRAGMA cipher_hmac_algorithm = HMAC_SHA1;")
         conn.execute(f"PRAGMA cipher_kdf_algorithm = PBKDF2_HMAC_SHA1;")
         return conn
+
+    def get_labels(self):
+        labels = []
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            rows = conn.execute("""
+            SELECT 
+                LabelId, 
+                LabelName 
+            FROM ContactLabel;
+            """).fetchall()
+            for row in rows:
+                labels.append({
+                    "id": row[0],
+                    "name": row[1]
+                })
+        return labels
+
+    def get_label(self, id):
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            row = conn.execute("""
+            SELECT 
+                LabelId, 
+                LabelName 
+            FROM ContactLabel 
+            WHERE LabelId = ?;""", (id,)).fetchone()
+            if row is None:
+                return None
+            return {
+                "id": row[0],
+                "name": row[1]
+            }
+
+    def get_corporate_contacts(self):
+        corporate_contacts = []
+        conn = self.create_connection("Msg/OpenIMContact.db")
+        with conn:
+            rows = conn.execute(
+                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark, CustomInfoDetail FROM OpenIMContact WHERE Type = 1;").fetchall()
+            for row in rows:
+                corporate_contacts.append({
+                    "wxid": row[0],
+                    "account": "",
+                    "nickname": row[1],
+                    "remark": row[4],
+                    "label_ids": [],
+                    "avatar": row[2],
+                    "country": "",
+                    "province": "",
+                    "city": "",
+                    "signature": "",
+                    "phone": "",
+                    "sex": row[3]
+                })
+        return corporate_contacts
+
+    def get_corporate_contact(self, wxid):
+        conn = self.create_connection("Msg/OpenIMContact.db")
+        with conn:
+            row = conn.execute(
+                """SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark, CustomInfoDetail FROM OpenIMContact WHERE Type = 1 AND UserName = ?;""",
+                (wxid,)).fetchone()
+            if row is None:
+                return None
+            return {
+                "wxid": row[0],
+                "account": "",
+                "nickname": row[1],
+                "remark": row[4],
+                "label_ids": [],
+                "avatar": row[2],
+                "country": "",
+                "province": "",
+                "city": "",
+                "signature": "",
+                "phone": "",
+                "sex": row[3]
+            }
+
+    def get_contacts(self):
+        contacts = []
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            rows = conn.execute("""
+            SELECT 
+                UserName, 
+                Alias,
+                NickName, 
+                Remark,
+                LabelIDList,
+                ContactHeadImgUrl.smallHeadImgUrl as avatar,
+                ExtraBuf
+            FROM Contact
+            LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
+            WHERE type = 3 AND VerifyFlag = 0;""").fetchall()
+            for row in rows:
+                extra_buf = decode_extra_buf(row[-1])
+                contact = {
+                    "wxid": row[0],
+                    "account": row[1],
+                    "nickname": row[2],
+                    "remark": row[3],
+                    "label_ids": list(map(lambda x: int(x), filter(lambda x: x != "", row[4].split(",")))),
+                    "avatar": row[5],
+                    **extra_buf
+                }
+                contacts.append(contact)
+        contacts.extend(self.get_corporate_contacts())
+        return contacts
+
+    def get_contact(self, wxid):
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            row = conn.execute("""
+            SELECT 
+                UserName, 
+                Alias,
+                NickName, 
+                Remark,
+                LabelIDList,
+                ContactHeadImgUrl.smallHeadImgUrl as avatar,
+                ExtraBuf
+            FROM Contact
+            LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
+            WHERE type = 3 AND VerifyFlag = 0 AND Contact.UserName = ?;""", (wxid,)).fetchone()
+            if row is None:
+                return None
+            extra_buf = decode_extra_buf(row[-1])
+            return {
+                "wxid": row[0],
+                "account": row[1],
+                "nickname": row[2],
+                "remark": row[3],
+                "label_ids": list(map(lambda x: int(x), filter(lambda x: x != "", row[4].split(",")))),
+                "avatar": row[5],
+                **extra_buf
+            }
+
+    def get_rooms(self):
+        rooms = []
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            rows = conn.execute("""
+            SELECT 
+                UserName, 
+                NickName, 
+                ContactHeadImgUrl.smallHeadImgUrl as avatar,
+                ChatRoom.UserNameList as member_wxids,
+                ChatRoom.Reserved2 as owner,
+                ChatRoomInfo.Announcement as announcement,
+                ChatRoomInfo.AnnouncementEditor as announcement_editor,
+                ChatRoomInfo.AnnouncementPublishTime as announcement_publish_time,
+                ChatRoomInfo.Reserved2 as group_notice,
+                ExtraBuf
+            FROM Contact
+            LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
+            LEFT JOIN ChatRoom on ChatRoom.ChatRoomName = Contact.UserName
+            LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
+            WHERE type = 2;""").fetchall()
+            for row in rows:
+                rooms.append({
+                    "wxid": row[0],
+                    "nickname": row[1],
+                    "avatar": row[2],
+                    "member_list": row[3].split("^G") if row[3] else [],
+                    "owner": row[4],
+                    "announcement": row[5],
+                    "announcement_editor": row[6],
+                    "announcement_publish_time": row[7],
+                    "group_notice": row[8]
+                })
+        return rooms
+
+    def get_room(self, room_wxid, detail=False):
+        conn = self.create_connection("Msg/MicroMsg.db")
+        with conn:
+            row = conn.execute("""
+            SELECT 
+                UserName, 
+                NickName, 
+                ContactHeadImgUrl.smallHeadImgUrl as avatar,
+                ChatRoom.UserNameList as member_wxids,
+                ChatRoom.Reserved2 as owner,
+                ChatRoomInfo.Announcement as announcement,
+                ChatRoomInfo.AnnouncementEditor as announcement_editor,
+                ChatRoomInfo.AnnouncementPublishTime as announcement_publish_time,
+                ChatRoomInfo.Reserved2 as group_notice,
+                ExtraBuf
+            FROM Contact
+            LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
+            LEFT JOIN ChatRoom on ChatRoom.ChatRoomName = Contact.UserName
+            LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
+            WHERE type = 2 AND Contact.UserName = ?;""", (room_wxid,)).fetchone()
+            if row is None:
+                return None
+            if detail:
+                return {
+                    "wxid": row[0],
+                    "nickname": row[1],
+                    "avatar": row[2],
+                    "member_list": self.get_room_members(room_wxid),
+                    "owner": row[4],
+                    "announcement": row[5],
+                    "announcement_editor": row[6],
+                    "announcement_publish_time": row[7],
+                    "group_notice": row[8]
+                }
+            else:
+                return {
+                    "wxid": row[0],
+                    "nickname": row[1],
+                    "avatar": row[2],
+                    "member_list": row[3].split("^G") if row[3] else [],
+                    "owner": row[4],
+                    "announcement": row[5],
+                    "announcement_editor": row[6],
+                    "announcement_publish_time": row[7],
+                    "group_notice": row[8]
+                }
+
+    def get_room_members(self, room_wxid):
+        room = self.get_room(room_wxid)
+        if not room:
+            return []
+        member_list = room["member_list"]
+        conn = self.create_connection("Msg/MicroMsg.db")
+        room_members = []
+        with conn:
+            for member_wxid in member_list:
+                if member_wxid.endswith("@openim"):
+                    contact = self.get_corporate_contact(member_wxid)
+                    room_members.append({
+                        "wxid": contact["wxid"],
+                        "nickname": contact["nickname"],
+                        "avatar": contact["avatar"]
+                    })
+                else:
+                    row = conn.execute("""
+                    SELECT 
+                        UserName, 
+                        NickName, 
+                        ContactHeadImgUrl.smallHeadImgUrl as avatar
+                    FROM Contact
+                    LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
+                    WHERE Contact.UserName = ?;
+                    """, (member_wxid,)).fetchone()
+                    if row is None:
+                        continue
+                    room_members.append({
+                        "wxid": row[0],
+                        "nickname": row[1],
+                        "avatar": row[2]
+                    })
+        return room_members
+
+    def get_room_member_wxids(self, room_wxid):
+        conn = self.create_connection("Msg/ChatRoomUser.db")
+        room_member_wxids = []
+        with conn:
+            rows = conn.execute("""
+            SELECT 
+                ChatRoomUserNameToId.UsrName AS wxid
+            FROM ChatRoomUser
+            JOIN ChatRoomUserNameToId ON ChatRoomUser.UserId = ChatRoomUserNameToId.rowid
+            WHERE ChatRoomUser.ChatRoomId = (
+                SELECT 
+                    rowid
+                FROM ChatRoomUserNameToId
+                WHERE UsrName = ?
+            );""", (room_wxid,)).fetchall()
+            for row in rows:
+                room_member_wxids.append(row[0])
+        return room_member_wxids
 
     def get_event(self, row: Optional[Tuple[Any, ...]]) -> Optional[Dict[str, Any]]:
         if not row:
@@ -235,11 +567,13 @@ class WeChatDB:
 
 if __name__ == "__main__":
     wechat_db = WeChatDB()
-
-
-    @wechat_db.handle(TEXT_MESSAGE)
-    def on_message(wechat_db_listener: WeChatDB, event: Dict[str, Any]) -> None:
-        print(wechat_db_listener, event)
-
-
-    wechat_db.run()
+    wechat_db.create_connection("Msg/OpenIMContact.db")
+    print(wechat_db.get_contacts())
+    # print(wechat_db.get_contact("xiaomengxiang001"))
+    # print(wechat_db.get_rooms())
+    # print(wechat_db.get_labels())
+    # print(wechat_db.get_room_member_wxids("38806094601@chatroom"))
+    # print(wechat_db.get_contacts())
+    # for room in wechat_db.get_rooms():
+    #     print(wechat_db.get_room(room["wxid"], True))
+    # print(wechat_db.get_room_members("47816794157@chatroom"))
