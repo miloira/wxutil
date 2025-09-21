@@ -188,7 +188,7 @@ class WeChatDB:
                 })
         return labels
 
-    def get_label(self, id):
+    def get_label(self, id: int) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
             row = conn.execute("""
@@ -204,7 +204,7 @@ class WeChatDB:
                 "name": row[1]
             }
 
-    def get_corporate_contacts(self):
+    def get_corporate_contacts(self) -> List:
         corporate_contacts = []
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
@@ -227,7 +227,7 @@ class WeChatDB:
                 })
         return corporate_contacts
 
-    def get_corporate_contact(self, wxid):
+    def get_corporate_contact(self, wxid: str) -> Optional[Dict]:
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
             row = conn.execute(
@@ -250,7 +250,7 @@ class WeChatDB:
                 "sex": row[3]
             }
 
-    def get_contacts(self):
+    def get_contacts(self) -> List:
         contacts = []
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
@@ -281,7 +281,7 @@ class WeChatDB:
         contacts.extend(self.get_corporate_contacts())
         return contacts
 
-    def get_contact(self, wxid):
+    def get_contact(self, wxid: str) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
             row = conn.execute("""
@@ -309,7 +309,7 @@ class WeChatDB:
                 **extra_buf
             }
 
-    def get_rooms(self):
+    def get_rooms(self) -> List:
         rooms = []
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
@@ -344,7 +344,7 @@ class WeChatDB:
                 })
         return rooms
 
-    def get_room(self, room_wxid, detail=False):
+    def get_room(self, room_wxid: str, detail: bool = False) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
             row = conn.execute("""
@@ -391,7 +391,7 @@ class WeChatDB:
                     "group_notice": row[8]
                 }
 
-    def get_room_members(self, room_wxid):
+    def get_room_members(self, room_wxid: str) -> List:
         room = self.get_room(room_wxid)
         if not room:
             return []
@@ -426,7 +426,7 @@ class WeChatDB:
                     })
         return room_members
 
-    def get_room_member_wxids(self, room_wxid):
+    def get_room_member_wxids(self, room_wxid: str) -> List:
         conn = self.create_connection("Msg/ChatRoomUser.db")
         room_member_wxids = []
         with conn:
