@@ -209,7 +209,7 @@ class WeChatDB:
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
             rows = conn.execute(
-                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark, CustomInfoDetail FROM OpenIMContact WHERE Type = 1;").fetchall()
+                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1;").fetchall()
             for row in rows:
                 corporate_contacts.append({
                     "wxid": row[0],
@@ -231,7 +231,7 @@ class WeChatDB:
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
             row = conn.execute(
-                """SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark, CustomInfoDetail FROM OpenIMContact WHERE Type = 1 AND UserName = ?;""",
+                """SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1 AND UserName = ?;""",
                 (wxid,)).fetchone()
             if row is None:
                 return None
