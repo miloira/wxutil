@@ -196,7 +196,8 @@ class WeChatDB:
                 LabelId, 
                 LabelName 
             FROM ContactLabel 
-            WHERE LabelId = ?;""", (id,)).fetchone()
+            WHERE LabelId = ?;
+            """, (id,)).fetchone()
             if row is None:
                 return None
             return {
@@ -208,8 +209,16 @@ class WeChatDB:
         corporate_contacts = []
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
-            rows = conn.execute(
-                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1;").fetchall()
+            rows = conn.execute("""
+            SELECT
+                UserName,
+                NickName,
+                SmallHeadImgUrl,
+                Sex,
+                Remark
+            FROM OpenIMContact 
+            WHERE Type = 1;
+            """).fetchall()
             for row in rows:
                 corporate_contacts.append({
                     "wxid": row[0],
@@ -230,9 +239,16 @@ class WeChatDB:
     def get_corporate_contact(self, wxid: str) -> Optional[Dict]:
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
-            row = conn.execute(
-                """SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1 AND UserName = ?;""",
-                (wxid,)).fetchone()
+            row = conn.execute("""
+            SELECT 
+                UserName, 
+                NickName, 
+                SmallHeadImgUrl, 
+                Sex, 
+                Remark
+            FROM OpenIMContact 
+            WHERE Type = 1 AND UserName = ?;
+            """, (wxid,)).fetchone()
             if row is None:
                 return None
             return {
@@ -265,7 +281,8 @@ class WeChatDB:
                 ExtraBuf
             FROM Contact
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
-            WHERE type = 3 AND VerifyFlag = 0;""").fetchall()
+            WHERE type = 3 AND VerifyFlag = 0;
+            """).fetchall()
             for row in rows:
                 extra_buf = decode_extra_buf(row[-1])
                 contact = {
@@ -295,7 +312,8 @@ class WeChatDB:
                 ExtraBuf
             FROM Contact
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
-            WHERE type = 3 AND VerifyFlag = 0 AND Contact.UserName = ?;""", (wxid,)).fetchone()
+            WHERE type = 3 AND VerifyFlag = 0 AND Contact.UserName = ?;
+            """, (wxid,)).fetchone()
             if row is None:
                 return None
             extra_buf = decode_extra_buf(row[-1])
@@ -329,7 +347,8 @@ class WeChatDB:
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
             LEFT JOIN ChatRoom on ChatRoom.ChatRoomName = Contact.UserName
             LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
-            WHERE type = 2;""").fetchall()
+            WHERE type = 2;
+            """).fetchall()
             for row in rows:
                 rooms.append({
                     "wxid": row[0],
@@ -363,7 +382,8 @@ class WeChatDB:
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
             LEFT JOIN ChatRoom on ChatRoom.ChatRoomName = Contact.UserName
             LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
-            WHERE type = 2 AND Contact.UserName = ?;""", (room_wxid,)).fetchone()
+            WHERE type = 2 AND Contact.UserName = ?;
+            """, (room_wxid,)).fetchone()
             if row is None:
                 return None
             if detail:
@@ -439,8 +459,8 @@ class WeChatDB:
                 SELECT 
                     rowid
                 FROM ChatRoomUserNameToId
-                WHERE UsrName = ?
-            );""", (room_wxid,)).fetchall()
+                WHERE UsrName = ?);
+            """, (room_wxid,)).fetchall()
             for row in rows:
                 room_member_wxids.append(row[0])
         return room_member_wxids
@@ -503,14 +523,28 @@ class WeChatDB:
 
     def get_recently_messages(self, count: int = 10, order: str = "DESC") -> List[Optional[Dict[str, Any]]]:
         with self.conn:
-            rows = self.conn.execute("SELECT * FROM MSG ORDER BY localId {} LIMIT ?;".format(order),
-                                     (count,)).fetchall()
+            rows = self.conn.execute("""
+            SELECT
+                *
+            FROM MSG 
+            ORDER BY localId {} 
+            LIMIT ?;
+            """.format(order), (count,)).fetchall()
             return [self.get_event(row) for row in rows]
 
     def get_latest_revoke_message(self) -> Optional[Dict[str, Any]]:
         with self.conn:
-            row = self.conn.execute(
-                "SELECT * FROM MSG WHERE Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId DESC LIMIT 1;").fetchone()
+            row = self.conn.execute("""
+            SELECT 
+                * 
+            FROM MSG 
+            WHERE Type = 10000 
+            AND SubType = 0 
+            AND StrContent 
+            like '%<revokemsg>%' 
+            ORDER BY localId DESC 
+            LIMIT 1;
+            """).fetchone()
             return self.get_event(row)
 
     def handle(self, events: Union[tuple, list] = (0, 0), once: bool = False) -> Callable[[Callable[..., Any]], None]:
@@ -537,8 +571,13 @@ class WeChatDB:
         while True:
 
             with self.conn:
-                rows = self.conn.execute("SELECT * FROM MSG where localId > ? ORDER BY localId;",
-                                         (current_local_id,)).fetchall()
+                rows = self.conn.execute("""
+                SELECT 
+                    * 
+                FROM MSG 
+                where localId > ? 
+                ORDER BY localId;
+                """, (current_local_id,)).fetchall()
                 for row in rows:
                     event = self.get_event(row)
                     logger.debug(event)
@@ -548,9 +587,17 @@ class WeChatDB:
                         self.event_emitter.emit(f"{event['type']}:{event['sub_type']}", self, event)
 
             with self.conn:
-                rows = self.conn.execute(
-                    "SELECT * FROM MSG WHERE localId > ? AND Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId;",
-                    (current_revoke_local_id,)).fetchall()
+                rows = self.conn.execute("""
+                SELECT 
+                    * 
+                FROM MSG 
+                WHERE localId > ? 
+                AND Type = 10000 
+                AND SubType = 0 
+                AND StrContent 
+                like '%<revokemsg>%' 
+                ORDER BY localId;
+                """, (current_revoke_local_id,)).fetchall()
                 for row in rows:
                     event = self.get_event(row)
                     logger.debug(event)
