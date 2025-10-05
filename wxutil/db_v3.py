@@ -6,7 +6,13 @@ from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import _sqlite3 as sqlite
 
 from logger import logger
-from utils import deserialize_bytes_extra, decompress_compress_content, parse_xml, get_db_key, read_info
+from utils import (
+    deserialize_bytes_extra,
+    decompress_compress_content,
+    parse_xml,
+    get_db_key,
+    read_info,
+)
 
 ALL_MESSAGE = (0, 0)
 TEXT_MESSAGE = (1, 0)  # 文本消息
@@ -49,21 +55,21 @@ def decode_extra_buf(extra_buf_content: bytes):
         "city": "",
         "signature": "",
         "phone": "",
-        "sex": ""
+        "sex": "",
     }
     if not extra_buf_content:
         return data
     trunk_name = {
-        b"\x46\xCF\x10\xC4": "个性签名",
-        b"\xA4\xD9\x02\x4A": "国家",
-        b"\xE2\xEA\xA8\xD1": "省份",
-        b"\x1D\x02\x5B\xBF": "市区",
+        b"\x46\xcf\x10\xc4": "个性签名",
+        b"\xa4\xd9\x02\x4a": "国家",
+        b"\xe2\xea\xa8\xd1": "省份",
+        b"\x1d\x02\x5b\xbf": "市区",
         # b"\x81\xAE\x19\xB4": "朋友圈背景url",
         # b"\xF9\x17\xBC\xC0": "公司名称",
         # b"\x4E\xB9\x6D\x85": "企业微信属性",
         # b"\x0E\x71\x9F\x13": "备注图片",
-        b"\x75\x93\x78\xAD": "手机号",
-        b"\x74\x75\x2C\x06": "性别",
+        b"\x75\x93\x78\xad": "手机号",
+        b"\x74\x75\x2c\x06": "性别",
     }
     res = {"手机号": ""}
     off = 0
@@ -74,18 +80,18 @@ def decode_extra_buf(extra_buf_content: bytes):
                 off = extra_buf_content.index(key) + 4
             except:
                 pass
-            char = extra_buf_content[off: off + 1]
+            char = extra_buf_content[off : off + 1]
             off += 1
             if char == b"\x04":  # 四个字节的int，小端序
-                int_content = extra_buf_content[off: off + 4]
+                int_content = extra_buf_content[off : off + 4]
                 off += 4
                 int_content = int.from_bytes(int_content, "little")
                 res[trunk_head] = int_content
             elif char == b"\x18":  # utf-16字符串
-                length_content = extra_buf_content[off: off + 4]
+                length_content = extra_buf_content[off : off + 4]
                 off += 4
                 length_content = int.from_bytes(length_content, "little")
-                strContent = extra_buf_content[off: off + length_content]
+                strContent = extra_buf_content[off : off + length_content]
                 off += length_content
                 res[trunk_head] = strContent.decode("utf-16").rstrip("\x00")
         return {
@@ -94,7 +100,7 @@ def decode_extra_buf(extra_buf_content: bytes):
             "city": res["市区"],
             "signature": res["个性签名"],
             "phone": res["手机号"],
-            "sex": res["性别"]
+            "sex": res["性别"],
         }
     except Exception:
         return data
@@ -134,12 +140,11 @@ def get_message(row: Tuple[Any, ...]) -> Dict[str, Any]:
         "reserved_6": row[22],
         "compress_content": row[23],
         "bytes_extra": row[24],
-        "bytes_trans": row[25]
+        "bytes_trans": row[25],
     }
 
 
 class WeChatDB:
-
     def __init__(self, pid: Optional[int] = None) -> None:
         result = read_info(pid)
         if result:
@@ -158,7 +163,9 @@ class WeChatDB:
         return os.path.join(self.data_dir, db_name)
 
     def get_msg_db(self) -> str:
-        with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+        with open(
+            os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8"
+        ) as f:
             return f.read()
 
     def create_connection(self, db_name: str) -> sqlite.Connection:
@@ -182,49 +189,49 @@ class WeChatDB:
             FROM ContactLabel;
             """).fetchall()
             for row in rows:
-                labels.append({
-                    "id": row[0],
-                    "name": row[1]
-                })
+                labels.append({"id": row[0], "name": row[1]})
         return labels
 
     def get_label(self, id: int) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
             SELECT 
                 LabelId, 
                 LabelName 
             FROM ContactLabel 
-            WHERE LabelId = ?;""", (id,)).fetchone()
+            WHERE LabelId = ?;""",
+                (id,),
+            ).fetchone()
             if row is None:
                 return None
-            return {
-                "id": row[0],
-                "name": row[1]
-            }
+            return {"id": row[0], "name": row[1]}
 
     def get_corporate_contacts(self) -> List:
         corporate_contacts = []
         conn = self.create_connection("Msg/OpenIMContact.db")
         with conn:
             rows = conn.execute(
-                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1;").fetchall()
+                "SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1;"
+            ).fetchall()
             for row in rows:
-                corporate_contacts.append({
-                    "wxid": row[0],
-                    "account": "",
-                    "nickname": row[1],
-                    "remark": row[4],
-                    "label_ids": [],
-                    "avatar": row[2],
-                    "country": "",
-                    "province": "",
-                    "city": "",
-                    "signature": "",
-                    "phone": "",
-                    "sex": row[3]
-                })
+                corporate_contacts.append(
+                    {
+                        "wxid": row[0],
+                        "account": "",
+                        "nickname": row[1],
+                        "remark": row[4],
+                        "label_ids": [],
+                        "avatar": row[2],
+                        "country": "",
+                        "province": "",
+                        "city": "",
+                        "signature": "",
+                        "phone": "",
+                        "sex": row[3],
+                    }
+                )
         return corporate_contacts
 
     def get_corporate_contact(self, wxid: str) -> Optional[Dict]:
@@ -232,7 +239,8 @@ class WeChatDB:
         with conn:
             row = conn.execute(
                 """SELECT UserName, NickName, SmallHeadImgUrl, Sex, Remark FROM OpenIMContact WHERE Type = 1 AND UserName = ?;""",
-                (wxid,)).fetchone()
+                (wxid,),
+            ).fetchone()
             if row is None:
                 return None
             return {
@@ -247,7 +255,7 @@ class WeChatDB:
                 "city": "",
                 "signature": "",
                 "phone": "",
-                "sex": row[3]
+                "sex": row[3],
             }
 
     def get_contacts(self) -> List:
@@ -273,9 +281,14 @@ class WeChatDB:
                     "account": row[1],
                     "nickname": row[2],
                     "remark": row[3],
-                    "label_ids": list(map(lambda x: int(x), filter(lambda x: x != "", row[4].split(",")))),
+                    "label_ids": list(
+                        map(
+                            lambda x: int(x),
+                            filter(lambda x: x != "", row[4].split(",")),
+                        )
+                    ),
                     "avatar": row[5],
-                    **extra_buf
+                    **extra_buf,
                 }
                 contacts.append(contact)
         contacts.extend(self.get_corporate_contacts())
@@ -284,7 +297,8 @@ class WeChatDB:
     def get_contact(self, wxid: str) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
             SELECT 
                 UserName, 
                 Alias,
@@ -295,7 +309,9 @@ class WeChatDB:
                 ExtraBuf
             FROM Contact
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
-            WHERE type = 3 AND VerifyFlag = 0 AND Contact.UserName = ?;""", (wxid,)).fetchone()
+            WHERE type = 3 AND VerifyFlag = 0 AND Contact.UserName = ?;""",
+                (wxid,),
+            ).fetchone()
             if row is None:
                 return None
             extra_buf = decode_extra_buf(row[-1])
@@ -304,9 +320,11 @@ class WeChatDB:
                 "account": row[1],
                 "nickname": row[2],
                 "remark": row[3],
-                "label_ids": list(map(lambda x: int(x), filter(lambda x: x != "", row[4].split(",")))),
+                "label_ids": list(
+                    map(lambda x: int(x), filter(lambda x: x != "", row[4].split(",")))
+                ),
                 "avatar": row[5],
-                **extra_buf
+                **extra_buf,
             }
 
     def get_rooms(self) -> List:
@@ -331,23 +349,26 @@ class WeChatDB:
             LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
             WHERE type = 2;""").fetchall()
             for row in rows:
-                rooms.append({
-                    "wxid": row[0],
-                    "nickname": row[1],
-                    "avatar": row[2],
-                    "member_list": row[3].split("^G") if row[3] else [],
-                    "owner": row[4],
-                    "announcement": row[5],
-                    "announcement_editor": row[6],
-                    "announcement_publish_time": row[7],
-                    "group_notice": row[8]
-                })
+                rooms.append(
+                    {
+                        "wxid": row[0],
+                        "nickname": row[1],
+                        "avatar": row[2],
+                        "member_list": row[3].split("^G") if row[3] else [],
+                        "owner": row[4],
+                        "announcement": row[5],
+                        "announcement_editor": row[6],
+                        "announcement_publish_time": row[7],
+                        "group_notice": row[8],
+                    }
+                )
         return rooms
 
     def get_room(self, room_wxid: str, detail: bool = False) -> Optional[Dict]:
         conn = self.create_connection("Msg/MicroMsg.db")
         with conn:
-            row = conn.execute("""
+            row = conn.execute(
+                """
             SELECT 
                 UserName, 
                 NickName, 
@@ -363,7 +384,9 @@ class WeChatDB:
             LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
             LEFT JOIN ChatRoom on ChatRoom.ChatRoomName = Contact.UserName
             LEFT JOIN ChatRoomInfo on ChatRoomInfo.ChatRoomName = Contact.UserName
-            WHERE type = 2 AND Contact.UserName = ?;""", (room_wxid,)).fetchone()
+            WHERE type = 2 AND Contact.UserName = ?;""",
+                (room_wxid,),
+            ).fetchone()
             if row is None:
                 return None
             if detail:
@@ -376,7 +399,7 @@ class WeChatDB:
                     "announcement": row[5],
                     "announcement_editor": row[6],
                     "announcement_publish_time": row[7],
-                    "group_notice": row[8]
+                    "group_notice": row[8],
                 }
             else:
                 return {
@@ -388,7 +411,7 @@ class WeChatDB:
                     "announcement": row[5],
                     "announcement_editor": row[6],
                     "announcement_publish_time": row[7],
-                    "group_notice": row[8]
+                    "group_notice": row[8],
                 }
 
     def get_room_members(self, room_wxid: str) -> List:
@@ -402,13 +425,16 @@ class WeChatDB:
             for member_wxid in member_list:
                 if member_wxid.endswith("@openim"):
                     contact = self.get_corporate_contact(member_wxid)
-                    room_members.append({
-                        "wxid": contact["wxid"],
-                        "nickname": contact["nickname"],
-                        "avatar": contact["avatar"]
-                    })
+                    room_members.append(
+                        {
+                            "wxid": contact["wxid"],
+                            "nickname": contact["nickname"],
+                            "avatar": contact["avatar"],
+                        }
+                    )
                 else:
-                    row = conn.execute("""
+                    row = conn.execute(
+                        """
                     SELECT 
                         UserName, 
                         NickName, 
@@ -416,21 +442,22 @@ class WeChatDB:
                     FROM Contact
                     LEFT JOIN ContactHeadImgUrl on ContactHeadImgUrl.usrName = Contact.UserName
                     WHERE Contact.UserName = ?;
-                    """, (member_wxid,)).fetchone()
+                    """,
+                        (member_wxid,),
+                    ).fetchone()
                     if row is None:
                         continue
-                    room_members.append({
-                        "wxid": row[0],
-                        "nickname": row[1],
-                        "avatar": row[2]
-                    })
+                    room_members.append(
+                        {"wxid": row[0], "nickname": row[1], "avatar": row[2]}
+                    )
         return room_members
 
     def get_room_member_wxids(self, room_wxid: str) -> List:
         conn = self.create_connection("Msg/ChatRoomUser.db")
         room_member_wxids = []
         with conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
             SELECT 
                 ChatRoomUserNameToId.UsrName AS wxid
             FROM ChatRoomUser
@@ -440,7 +467,9 @@ class WeChatDB:
                     rowid
                 FROM ChatRoomUserNameToId
                 WHERE UsrName = ?
-            );""", (room_wxid,)).fetchall()
+            );""",
+                (room_wxid,),
+            ).fetchall()
             for row in rows:
                 room_member_wxids.append(row[0])
         return room_member_wxids
@@ -464,7 +493,7 @@ class WeChatDB:
             "room_wxid": None,
             "from_wxid": None,
             "to_wxid": None,
-            "extra": None
+            "extra": None,
         }
 
         bytes_extra = deserialize_bytes_extra(message["bytes_extra"])
@@ -494,26 +523,34 @@ class WeChatDB:
                     idx = 0 if message["is_sender"] == 1 else 1
                     xml_data = parse_xml(bytes_extra["3"][idx]["2"])
                     data["at_user_list"] = [
-                        x for x in xml_data["msgsource"].get("atuserlist", "").split(",") if x
+                        x
+                        for x in xml_data["msgsource"].get("atuserlist", "").split(",")
+                        if x
                     ]
             except Exception:
                 pass
 
         return data
 
-    def get_recently_messages(self, count: int = 10, order: str = "DESC") -> List[Optional[Dict[str, Any]]]:
+    def get_recently_messages(
+        self, count: int = 10, order: str = "DESC"
+    ) -> List[Optional[Dict[str, Any]]]:
         with self.conn:
-            rows = self.conn.execute("SELECT * FROM MSG ORDER BY localId {} LIMIT ?;".format(order),
-                                     (count,)).fetchall()
+            rows = self.conn.execute(
+                "SELECT * FROM MSG ORDER BY localId {} LIMIT ?;".format(order), (count,)
+            ).fetchall()
             return [self.get_event(row) for row in rows]
 
     def get_latest_revoke_message(self) -> Optional[Dict[str, Any]]:
         with self.conn:
             row = self.conn.execute(
-                "SELECT * FROM MSG WHERE Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId DESC LIMIT 1;").fetchone()
+                "SELECT * FROM MSG WHERE Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId DESC LIMIT 1;"
+            ).fetchone()
             return self.get_event(row)
 
-    def handle(self, events: Union[tuple, list] = (0, 0), once: bool = False) -> Callable[[Callable[..., Any]], None]:
+    def handle(
+        self, events: Union[tuple, list] = (0, 0), once: bool = False
+    ) -> Callable[[Callable[..., Any]], None]:
         def wrapper(func: Callable[..., Any]) -> None:
             listen = self.event_emitter.on if not once else self.event_emitter.once
             if isinstance(events, tuple):
@@ -530,34 +567,44 @@ class WeChatDB:
 
     def run(self, period: float = 0.1) -> None:
         recently_messages = self.get_recently_messages(1)
-        current_local_id = recently_messages[0]["id"] if recently_messages and recently_messages[0] else 0
+        current_local_id = (
+            recently_messages[0]["id"]
+            if recently_messages and recently_messages[0]
+            else 0
+        )
         revoke_message = self.get_latest_revoke_message()
         current_revoke_local_id = revoke_message["id"] if revoke_message else 0
         logger.info("Start listening...")
         while True:
-
             with self.conn:
-                rows = self.conn.execute("SELECT * FROM MSG where localId > ? ORDER BY localId;",
-                                         (current_local_id,)).fetchall()
+                rows = self.conn.execute(
+                    "SELECT * FROM MSG where localId > ? ORDER BY localId;",
+                    (current_local_id,),
+                ).fetchall()
                 for row in rows:
                     event = self.get_event(row)
                     logger.debug(event)
                     if event:
                         current_local_id = event["id"]
                         self.event_emitter.emit(f"0:0", self, event)
-                        self.event_emitter.emit(f"{event['type']}:{event['sub_type']}", self, event)
+                        self.event_emitter.emit(
+                            f"{event['type']}:{event['sub_type']}", self, event
+                        )
 
             with self.conn:
                 rows = self.conn.execute(
                     "SELECT * FROM MSG WHERE localId > ? AND Type = 10000 AND SubType = 0 AND StrContent like '%<revokemsg>%' ORDER BY localId;",
-                    (current_revoke_local_id,)).fetchall()
+                    (current_revoke_local_id,),
+                ).fetchall()
                 for row in rows:
                     event = self.get_event(row)
                     logger.debug(event)
                     if event:
                         current_revoke_local_id = event["id"]
                         self.event_emitter.emit(f"0:0", self, event)
-                        self.event_emitter.emit(f"{event['type']}:{event['sub_type']}", self, event)
+                        self.event_emitter.emit(
+                            f"{event['type']}:{event['sub_type']}", self, event
+                        )
 
             time.sleep(period)
 

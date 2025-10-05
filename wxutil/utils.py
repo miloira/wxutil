@@ -139,7 +139,7 @@ def get_wx_info(version: str = "v3", pid: int = None) -> Dict:
             "version": version,
             "account": account,
             "data_dir": data_dir,
-            "key": key
+            "key": key,
         }
 
 
@@ -152,19 +152,15 @@ def get_exe_bit(file_path: str) -> int:
         pe_offset = int.from_bytes(f.read(4), "little")
         f.seek(pe_offset + 4)
         machine = int.from_bytes(f.read(2), "little")
-        return 32 if machine == 0x14c else 64 if machine == 0x8664 else 64
+        return 32 if machine == 0x14C else 64 if machine == 0x8664 else 64
 
 
 def pattern_scan_all(
-        handle: int,
-        pattern: bytes,
-        *,
-        return_multiple: bool = False,
-        find_num: int = 100
+    handle: int, pattern: bytes, *, return_multiple: bool = False, find_num: int = 100
 ) -> Union[int, List[int]]:
     next_region = 0
     found = []
-    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2 ** 32 else 0x7fff0000
+    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2**32 else 0x7FFF0000
     while next_region < user_space_limit:
         try:
             next_region, page_found = pymem.pattern.scan_pattern_page(
@@ -186,7 +182,9 @@ def pattern_scan_all(
 
 
 def get_info_wxid(h_process: int) -> Union[str, None]:
-    addrs = pattern_scan_all(h_process, br"\\Msg\\FTSContact", return_multiple=True, find_num=100)
+    addrs = pattern_scan_all(
+        h_process, rb"\\Msg\\FTSContact", return_multiple=True, find_num=100
+    )
     wxids = []
     for addr in addrs:
         array = ctypes.create_string_buffer(80)
@@ -199,13 +197,22 @@ def get_info_wxid(h_process: int) -> Union[str, None]:
 
 
 def get_info_file_path_base_wxid(h_process: int, wxid: str) -> Union[str, None]:
-    addrs = pattern_scan_all(h_process, wxid.encode() + br"\\Msg\\FTSContact",
-                             return_multiple=True, find_num=10)
+    addrs = pattern_scan_all(
+        h_process,
+        wxid.encode() + rb"\\Msg\\FTSContact",
+        return_multiple=True,
+        find_num=10,
+    )
     file_paths = []
     for addr in addrs:
         buffer_len = 260
         array = ctypes.create_string_buffer(buffer_len)
-        if ReadProcessMemory(h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0) == 0:
+        if (
+            ReadProcessMemory(
+                h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0
+            )
+            == 0
+        ):
             return None
         raw = bytes(array).split(b"\\Msg")[0].split(b"\00")[-1]
         file_paths.append(raw.decode("utf-8", errors="ignore"))
@@ -220,7 +227,9 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
     is_w_dir = False
 
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Tencent\WeChat", 0, winreg.KEY_READ)
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER, r"Software\Tencent\WeChat", 0, winreg.KEY_READ
+        )
         value, _ = winreg.QueryValueEx(key, "FileSavePath")
         winreg.CloseKey(key)
         w_dir = value
@@ -231,8 +240,16 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
     if not is_w_dir:
         try:
             user_profile = os.environ.get("USERPROFILE")
-            path_3ebffe94 = os.path.join(user_profile, "AppData", "Roaming", "Tencent", "WeChat", "All Users", "config",
-                                         "3ebffe94.ini")
+            path_3ebffe94 = os.path.join(
+                user_profile,
+                "AppData",
+                "Roaming",
+                "Tencent",
+                "WeChat",
+                "All Users",
+                "config",
+                "3ebffe94.ini",
+            )
             with open(path_3ebffe94, "r", encoding="utf-8") as f:
                 w_dir = f.read()
 
@@ -241,8 +258,10 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
 
     if w_dir == "MyDocument:":
         try:
-            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
-                                 r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders")
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders",
+            )
             documents_path = winreg.QueryValueEx(key, "Personal")[0]
             winreg.CloseKey(key)
             documents_paths = os.path.split(documents_path)
@@ -265,7 +284,9 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
 
 
 def get_key(pid: int, db_path: str, addr_len: int) -> Union[str, None]:
-    def read_key_bytes(h_process: int, address: int, address_len: int = 8) -> Union[bytes, None]:
+    def read_key_bytes(
+        h_process: int, address: int, address_len: int = 8
+    ) -> Union[bytes, None]:
         array = ctypes.create_string_buffer(address_len)
         if ReadProcessMemory(h_process, void_p(address), array, address_len, 0) == 0:
             return None
@@ -302,7 +323,9 @@ def get_key(pid: int, db_path: str, addr_len: int) -> Union[str, None]:
     type_addrs = []
 
     for type_pattern in type_patterns:
-        addrs = pm.pattern_scan_module(type_pattern.encode(), module_name, return_multiple=True)
+        addrs = pm.pattern_scan_module(
+            type_pattern.encode(), module_name, return_multiple=True
+        )
         if len(addrs) >= 2:
             type_addrs.extend(addrs)
 
@@ -321,10 +344,17 @@ def get_key(pid: int, db_path: str, addr_len: int) -> Union[str, None]:
 def read_info(pid: Optional[int] = None) -> Union[List[Dict[str, str]], None]:
     process_name = "WeChat.exe"
     if pid is None:
-        wechat_processes = [p for p in psutil.process_iter(["name", "exe", "pid"]) if p.name() == process_name]
+        wechat_processes = [
+            p
+            for p in psutil.process_iter(["name", "exe", "pid"])
+            if p.name() == process_name
+        ]
     else:
-        wechat_processes = [p for p in psutil.process_iter(["name", "exe", "pid"]) if
-                            p.name() == process_name and p.pid == pid]
+        wechat_processes = [
+            p
+            for p in psutil.process_iter(["name", "exe", "pid"])
+            if p.name() == process_name and p.pid == pid
+        ]
 
     if not wechat_processes:
         return None
@@ -341,7 +371,9 @@ def read_info(pid: Optional[int] = None) -> Union[List[Dict[str, str]], None]:
         if file_path == None and wxid != None:
             file_path = get_info_file_path(wxid)
         tmp_rd["file_path"] = file_path
-        tmp_rd["key"] = get_key(process.pid, file_path, addr_len) if file_path != None else None
+        tmp_rd["key"] = (
+            get_key(process.pid, file_path, addr_len) if file_path != None else None
+        )
         result.append(tmp_rd)
 
     return result
@@ -367,7 +399,7 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
 
     # 读取 salt
     salt = buf[:SALT_SIZE]
-    mac_salt = bytes([b ^ 0x3a for b in salt])
+    mac_salt = bytes([b ^ 0x3A for b in salt])
 
     # 生成 key
     pass_bytes = binascii.unhexlify(pkey)
@@ -398,7 +430,7 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
 
         # HMAC-SHA1 校验
         mac = hmac.new(mac_key, digestmod=hashlib.sha1)
-        mac.update(buf[start + offset:end - reserve + IV_SIZE])
+        mac.update(buf[start + offset : end - reserve + IV_SIZE])
         mac.update((cur_page + 1).to_bytes(4, byteorder="little"))
         hash_mac = mac.digest()
 
@@ -408,11 +440,11 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
             raise ValueError("Hash verification failed")
 
         # AES-256-CBC 解密
-        iv = buf[end - reserve:end - reserve + IV_SIZE]
+        iv = buf[end - reserve : end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset:end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve:end])  # 保留 reserve 部分
+        decrypted_buf.extend(buf[end - reserve : end])  # 保留 reserve 部分
 
     return bytes(decrypted_buf)
 
@@ -436,7 +468,7 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
 
     decrypted_buf = bytearray()
     salt = buf[:SALT_SIZE]
-    mac_salt = bytes([b ^ 0x3a for b in salt])
+    mac_salt = bytes([b ^ 0x3A for b in salt])
 
     pass_bytes = bytes.fromhex(pkey)
 
@@ -459,7 +491,7 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         end = start + PAGE_SIZE
 
         # 计算 HMAC-SHA512
-        mac_data = buf[start + offset:end - reserve + IV_SIZE]
+        mac_data = buf[start + offset : end - reserve + IV_SIZE]
         page_num_bytes = (cur_page + 1).to_bytes(4, byteorder="little")
         mac = hmac.new(mac_key, mac_data + page_num_bytes, hashlib.sha512).digest()
 
@@ -468,12 +500,12 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         if mac != buf[hash_mac_start_offset:hash_mac_end_offset]:
             raise ValueError(f"Hash verification failed on page {cur_page + 1}")
 
-        iv = buf[end - reserve:end - reserve + IV_SIZE]
+        iv = buf[end - reserve : end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset:end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
 
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve:end])
+        decrypted_buf.extend(buf[end - reserve : end])
 
     return bytes(decrypted_buf)
 
@@ -493,9 +525,13 @@ def get_db_key(pkey: str, path: str, version: str) -> str:
 
     # 根据版本选择哈希算法和迭代次数
     if version.startswith("3"):
-        key = hashlib.pbkdf2_hmac("sha1", pass_bytes, salt, ROUND_COUNT_V3, dklen=KEY_SIZE)
+        key = hashlib.pbkdf2_hmac(
+            "sha1", pass_bytes, salt, ROUND_COUNT_V3, dklen=KEY_SIZE
+        )
     elif version.startswith("4"):
-        key = hashlib.pbkdf2_hmac("sha512", pass_bytes, salt, ROUND_COUNT_V4, dklen=KEY_SIZE)
+        key = hashlib.pbkdf2_hmac(
+            "sha512", pass_bytes, salt, ROUND_COUNT_V4, dklen=KEY_SIZE
+        )
     else:
         raise ValueError(f"Not support version: {version}")
 
@@ -511,229 +547,127 @@ def deserialize_bytes_extra(bytes_extra: Optional[bytes]) -> Dict[str, Any]:
         "1": {
             "type": "message",
             "message_typedef": {
-                "1": {
-                    "type": "int",
-                    "name": ""
-                },
-                "2": {
-                    "type": "int",
-                    "name": ""
-                }
+                "1": {"type": "int", "name": ""},
+                "2": {"type": "int", "name": ""},
             },
-            "name": "1"
+            "name": "1",
         },
         "3": {
             "type": "message",
             "message_typedef": {
-                "1": {
-                    "type": "int",
-                    "name": ""
-                },
-                "2": {
-                    "type": "str",
-                    "name": ""
-                }
+                "1": {"type": "int", "name": ""},
+                "2": {"type": "str", "name": ""},
             },
             "name": "3",
             "alt_typedefs": {
                 "1": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
-                    "2": {
-                        "type": "message",
-                        "message_typedef": {},
-                        "name": ""
-                    }
+                    "1": {"type": "int", "name": ""},
+                    "2": {"type": "message", "message_typedef": {}, "name": ""},
                 },
                 "2": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "13": {
-                                "type": "fixed32",
-                                "name": ""
-                            },
-                            "12": {
-                                "type": "fixed32",
-                                "name": ""
-                            }
+                            "13": {"type": "fixed32", "name": ""},
+                            "12": {"type": "fixed32", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "3": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
-                        "message_typedef": {
-                            "15": {
-                                "type": "fixed64",
-                                "name": ""
-                            }
-                        },
-                        "name": ""
-                    }
+                        "message_typedef": {"15": {"type": "fixed64", "name": ""}},
+                        "name": "",
+                    },
                 },
                 "4": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "15": {
-                                "type": "int",
-                                "name": ""
-                            },
-                            "14": {
-                                "type": "fixed32",
-                                "name": ""
-                            }
+                            "15": {"type": "int", "name": ""},
+                            "14": {"type": "fixed32", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "5": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "12": {
-                                "type": "fixed32",
-                                "name": ""
-                            },
-                            "7": {
-                                "type": "fixed64",
-                                "name": ""
-                            },
-                            "6": {
-                                "type": "fixed64",
-                                "name": ""
-                            }
+                            "12": {"type": "fixed32", "name": ""},
+                            "7": {"type": "fixed64", "name": ""},
+                            "6": {"type": "fixed64", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "6": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "7": {
-                                "type": "fixed64",
-                                "name": ""
-                            },
-                            "6": {
-                                "type": "fixed32",
-                                "name": ""
-                            }
+                            "7": {"type": "fixed64", "name": ""},
+                            "6": {"type": "fixed32", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "7": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
-                        "message_typedef": {
-                            "12": {
-                                "type": "fixed64",
-                                "name": ""
-                            }
-                        },
-                        "name": ""
-                    }
+                        "message_typedef": {"12": {"type": "fixed64", "name": ""}},
+                        "name": "",
+                    },
                 },
                 "8": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "6": {
-                                "type": "fixed64",
-                                "name": ""
-                            },
-                            "12": {
-                                "type": "fixed32",
-                                "name": ""
-                            }
+                            "6": {"type": "fixed64", "name": ""},
+                            "12": {"type": "fixed32", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "9": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "15": {
-                                "type": "int",
-                                "name": ""
-                            },
-                            "12": {
-                                "type": "fixed64",
-                                "name": ""
-                            },
-                            "6": {
-                                "type": "int",
-                                "name": ""
-                            }
+                            "15": {"type": "int", "name": ""},
+                            "12": {"type": "fixed64", "name": ""},
+                            "6": {"type": "int", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
                 "10": {
-                    "1": {
-                        "type": "int",
-                        "name": ""
-                    },
+                    "1": {"type": "int", "name": ""},
                     "2": {
                         "type": "message",
                         "message_typedef": {
-                            "6": {
-                                "type": "fixed32",
-                                "name": ""
-                            },
-                            "12": {
-                                "type": "fixed64",
-                                "name": ""
-                            }
+                            "6": {"type": "fixed32", "name": ""},
+                            "12": {"type": "fixed64", "name": ""},
                         },
-                        "name": ""
-                    }
+                        "name": "",
+                    },
                 },
-            }
-        }
+            },
+        },
     }
     if bytes_extra is None or not isinstance(bytes_extra, bytes):
         raise TypeError("BytesExtra must be bytes")
 
-    deserialize_data, message_type = blackboxprotobuf.decode_message(bytes_extra, bytes_extra_message_type)
+    deserialize_data, message_type = blackboxprotobuf.decode_message(
+        bytes_extra, bytes_extra_message_type
+    )
     return deserialize_data
 
 
@@ -868,7 +802,7 @@ def get_memory_regions(process_handle):
     mbi = MEMORY_BASIC_INFORMATION()
     address = 0
     while ctypes.windll.kernel32.VirtualQueryEx(
-            process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
+        process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
     ):
         if mbi.State == MEM_COMMIT and mbi.Type == MEM_PRIVATE:
             regions.append((mbi.BaseAddress, mbi.RegionSize))
@@ -1001,7 +935,7 @@ def sort_template_files_by_date(template_files):
         """
         # 使用正则表达式查找形如 "YYYY-MM" 的模式
         # r'(\d{4}-\d{2})' 匹配四个数字-两个数字，并将其捕获为一个组
-        match = re.search(r'(\d{4}-\d{2})', str(filepath))
+        match = re.search(r"(\d{4}-\d{2})", str(filepath))
         if match:
             return match.group(1)  # 返回捕获到的日期字符串
         else:
@@ -1017,7 +951,12 @@ def sort_template_files_by_date(template_files):
     return sorted_files
 
 
-def find_key(weixin_dir: Path, version: int = 4, xor_key_: int | None = None, aes_key_: bytes | None = None):
+def find_key(
+    weixin_dir: Path,
+    version: int = 4,
+    xor_key_: int | None = None,
+    aes_key_: bytes | None = None,
+):
     """
     遍历目录下文件, 找到至多 16 个 (.*)_t.dat 文件,
     收集最后两位字节, 选择出现次数最多的两个字节.
@@ -1150,7 +1089,7 @@ def decrypt_file(file_path: str, xor_key: int, aes_key: bytes) -> bytes:
 
 
 def get_image_info(data: bytes) -> Union[Tuple[str, int], None]:
-    JPEG = (0xFF, 0XD8, 0XFF)
+    JPEG = (0xFF, 0xD8, 0xFF)
     PNG = (0x89, 0x50, 0x4E)
     BMP = (0x42, 0x4D)
     GIF = (0x47, 0x49, 0x46)
@@ -1159,7 +1098,7 @@ def get_image_info(data: bytes) -> Union[Tuple[str, int], None]:
 
     for i, FORMAT_FEATURE in enumerate(IMAGE_FORMAT_FEATURE):
         result = []
-        image_feature = data[:len(FORMAT_FEATURE)]
+        image_feature = data[: len(FORMAT_FEATURE)]
         for j, format_feature in enumerate(FORMAT_FEATURE):
             result.append(image_feature[j] ^ format_feature)
 
@@ -1242,11 +1181,13 @@ def version_to_hex(version: str) -> int:
 if __name__ == "__main__":
     modify_wechat_version("3.6.0.18", "3.9.12.15")
     # print(read_info())
-    weixin_dir = 'C:\\Users\\69012\\Documents\\WeChat Files\\wxid_g7leryvu7kqm22'
+    weixin_dir = "C:\\Users\\69012\\Documents\\WeChat Files\\wxid_g7leryvu7kqm22"
     xor_key, aes_key = find_key(pathlib.Path(weixin_dir), version=3)
     print(xor_key, aes_key)
     data = decrypt_file(
         r"C:\Users\69012\Documents\WeChat Files\wxid_g7leryvu7kqm22\FileStorage\MsgAttach\ecdbda0a87ecfbd437b436bff535d94a\Image\2025-09\0cda468757d07b271bdb3ce5b2222aa9.dat",
-        xor_key, aes_key)
+        xor_key,
+        aes_key,
+    )
     with open("1.png", "wb") as f:
         f.write(data)
