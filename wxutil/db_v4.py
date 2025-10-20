@@ -41,7 +41,6 @@ GROUP_ANNOUNCEMENT_MESSAGE = 373662154801
 
 
 class WeChatDB:
-
     def __init__(self, pid: Optional[int] = None) -> None:
         self.info = get_wx_info("v4", pid)
         self.pid = self.info["pid"]
@@ -95,7 +94,7 @@ class WeChatDB:
             "packed_info_data": row[14],
             "WCDB_CT_message_content": row[15],
             "WCDB_CT_source": row[16],
-            "sender": row[17]
+            "sender": row[17],
         }
 
     def get_event(self, table: str, row: Optional[Tuple]) -> Optional[Dict]:
@@ -117,13 +116,19 @@ class WeChatDB:
             "room_wxid": None,
             "from_wxid": message["sender"],
             "to_wxid": None,
-            "extra": message["packed_info_data"]
+            "extra": message["packed_info_data"],
         }
 
         if message["source"]:
             data["meta"] = parse_xml(decompress(message["source"]))
-            if data["meta"] and data["meta"].get("msgsource") and data["meta"]["msgsource"].get("atuserlist"):
-                data["at_user_list"] = data["meta"]["msgsource"]["atuserlist"].split(",")
+            if (
+                data["meta"]
+                and data["meta"].get("msgsource")
+                and data["meta"]["msgsource"].get("atuserlist")
+            ):
+                data["at_user_list"] = data["meta"]["msgsource"]["atuserlist"].split(
+                    ","
+                )
 
         if data["type"] != 1:
             try:
@@ -146,8 +151,9 @@ class WeChatDB:
 
         return data
 
-    def get_recently_messages(self, table: str, count: int = 10, order: str = "DESC") -> List[
-        Optional[Dict]]:
+    def get_recently_messages(
+        self, table: str, count: int = 10, order: str = "DESC"
+    ) -> List[Optional[Dict]]:
         with self.conn:
             rows = self.conn.execute(
                 """
@@ -159,12 +165,14 @@ class WeChatDB:
                 ORDER BY m.local_id {}
                 LIMIT ?;
                 """.format(table, order),
-                (count,)).fetchall()
+                (count,),
+            ).fetchall()
             return [self.get_event(table, row) for row in rows]
 
     def get_latest_revoke_message(self, table: str) -> Optional[Dict]:
         with self.conn:
-            row = self.conn.execute("""
+            row = self.conn.execute(
+                """
             SELECT 
                 m.*,
                 n.user_name AS sender
@@ -174,7 +182,8 @@ class WeChatDB:
             AND m.status = 4
             ORDER BY m.local_id DESC 
             LIMIT 1;
-            """.format(table)).fetchone()
+            """.format(table)
+            ).fetchone()
             if not row:
                 return
             return self.get_event(table, row)
@@ -192,17 +201,22 @@ class WeChatDB:
 
     def id_to_wxid(self, id: int) -> Optional[str]:
         with self.conn:
-            row = self.conn.execute("""
+            row = self.conn.execute(
+                """
             SELECT
                 user_name 
             FROM Name2Id 
             WHERE rowid = ?;
-            """, (id,)).fetchone()
+            """,
+                (id,),
+            ).fetchone()
             if not row:
                 return
             return row[0]
 
-    def handle(self, events: Union[int, list] = 0, once: bool = False) -> Callable[[Callable[..., Any]], None]:
+    def handle(
+        self, events: Union[int, list] = 0, once: bool = False
+    ) -> Callable[[Callable[..., Any]], None]:
         def wrapper(func: Callable[..., Any]) -> None:
             listen = self.event_emitter.on if not once else self.event_emitter.once
             if isinstance(events, int):
@@ -221,11 +235,17 @@ class WeChatDB:
         self.msg_tables = self.get_msg_tables()
         for msg_table in self.msg_tables:
             recently_messages = self.get_recently_messages(msg_table, 1)
-            current_max_local_id = recently_messages[0]["id"] if recently_messages and recently_messages[0] else 0
+            current_max_local_id = (
+                recently_messages[0]["id"]
+                if recently_messages and recently_messages[0]
+                else 0
+            )
             msg_table_max_local_id[msg_table] = current_max_local_id
 
             latest_revoke_message = self.get_latest_revoke_message(msg_table)
-            current_revoke_local_id = latest_revoke_message["id"] if latest_revoke_message else 0
+            current_revoke_local_id = (
+                latest_revoke_message["id"] if latest_revoke_message else 0
+            )
             msg_table_revoke_local_id[msg_table] = current_revoke_local_id
 
         logger.info("Start listening...")
@@ -242,14 +262,17 @@ class WeChatDB:
 
                 for table, max_local_id in msg_table_max_local_id.items():
                     with self.conn:
-                        rows = self.conn.execute("""
+                        rows = self.conn.execute(
+                            """
                         SELECT 
                             m.*,
                             n.user_name AS sender
                         FROM {} AS m
                         LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
                         WHERE local_id > ?;
-                        """.format(table), (max_local_id,)).fetchall()
+                        """.format(table),
+                            (max_local_id,),
+                        ).fetchall()
                         for row in rows:
                             event = self.get_event(table, row)
                             logger.debug(event)
@@ -260,14 +283,17 @@ class WeChatDB:
 
                 for table, revoke_local_id in msg_table_revoke_local_id.items():
                     with self.conn:
-                        rows = self.conn.execute("""
+                        rows = self.conn.execute(
+                            """
                         SELECT 
                             m.*,
                             n.user_name AS sender
                         FROM {} AS m
                         LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
                         WHERE local_type = 10000 AND status = 4 AND local_id > ?;
-                        """.format(table), (revoke_local_id,)).fetchall()
+                        """.format(table),
+                            (revoke_local_id,),
+                        ).fetchall()
                         for row in rows:
                             event = self.get_event(table, row)
                             logger.debug(event)
