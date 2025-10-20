@@ -158,8 +158,11 @@ class WeChatDB:
         return os.path.join(self.data_dir, db_name)
 
     def get_msg_db(self) -> str:
-        with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            return "MSG0.db"
 
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name))
