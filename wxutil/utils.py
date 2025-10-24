@@ -717,13 +717,12 @@ def decrypt_dat(input_file: str) -> int:
     with open(input_file, "rb") as f:
         signature = f.read(6)
 
-    match signature:
-        case b"\x07\x08V1\x08\x07":
-            return 1
-        case b"\x07\x08V2\x08\x07":
-            return 2
-        case _:
-            return 0
+    if signature == b"\x07\x08V1\x08\x07":
+        return 1
+    elif signature == b"\x07\x08V2\x08\x07":
+        return 2
+    else:
+        return 0
 
 
 # 定义必要的常量
