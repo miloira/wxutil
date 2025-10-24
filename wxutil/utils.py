@@ -13,11 +13,11 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import blackboxprotobuf
 import lz4.block
+import pathlib
 import psutil
 import pymem
 import xmltodict
@@ -941,7 +941,7 @@ def sort_template_files_by_date(template_files):
 
 
 def find_key(
-        weixin_dir: Path,
+        weixin_dir: pathlib.Path,
         version: int = 4,
         xor_key_: int | None = None,
         aes_key_: bytes | None = None,
