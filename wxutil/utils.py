@@ -4,7 +4,6 @@ import hashlib
 import hmac
 import json
 import os
-import pathlib
 import re
 import subprocess
 import sys
@@ -15,14 +14,14 @@ from concurrent.futures import ThreadPoolExecutor
 from ctypes import wintypes
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import psutil
-import pymem
-import yara
 import blackboxprotobuf
 import lz4.block
+import psutil
+import pymem
 import xmltodict
+import yara
 import zstandard
 
 ReadProcessMemory = ctypes.windll.kernel32.ReadProcessMemory
