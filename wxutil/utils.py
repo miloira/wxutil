@@ -1,28 +1,31 @@
 import binascii
 import ctypes
+from ctypes import wintypes
 import hashlib
 import hmac
 import json
 import os
+import pathlib
 import re
+import struct
 import subprocess
 import sys
 import threading
 import winreg
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from ctypes import wintypes
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import blackboxprotobuf
-import lz4.block
-import pathlib
 import psutil
 import pymem
-import xmltodict
-import yara
+import blackboxprotobuf
+import lz4.block
 import zstandard
+import xmltodict
+
+from Crypto.Cipher import AES
+from Crypto.Util import Padding
 
 ReadProcessMemory = ctypes.windll.kernel32.ReadProcessMemory
 void_p = ctypes.c_void_p
@@ -682,12 +685,6 @@ def decompress(data):
         return data
 
 
-import struct
-
-from Crypto.Cipher import AES
-from Crypto.Util import Padding
-
-
 def decrypt_dat_v3(input_path: str, xor_key: int) -> bytes:
     with open(input_path, "rb") as f:
         data = f.read()
@@ -866,6 +863,7 @@ def get_aes_key(encrypted: bytes, pid: int) -> Any:
             $pattern
     }
     """
+    import yara
     rules = yara.compile(source=rules_key)
 
     # 获取内存区域
