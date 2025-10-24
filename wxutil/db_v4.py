@@ -125,9 +125,9 @@ class WeChatDB:
         if message["source"]:
             data["source"] = parse_xml(decompress(message["source"]))
             if (
-                    data["source"]
-                    and data["source"].get("msgsource")
-                    and data["source"]["msgsource"].get("atuserlist")
+                data["source"]
+                and data["source"].get("msgsource")
+                and data["source"]["msgsource"].get("atuserlist")
             ):
                 data["at_user_list"] = data["source"]["msgsource"]["atuserlist"].split(
                     ","
@@ -167,8 +167,14 @@ class WeChatDB:
                     self.wxid_table_mapping[message["room_wxid"]] = msg_table
         return self.wxid_table_mapping.get(wxid)
 
-    def get_text_msg(self, self_wxid: str, to_wxid: str, content: str, seconds: int = 30, limit: int = 1) -> List[
-        Optional[Dict]]:
+    def get_text_msg(
+        self,
+        self_wxid: str,
+        to_wxid: str,
+        content: str,
+        seconds: int = 30,
+        limit: int = 1,
+    ) -> List[Optional[Dict]]:
         create_time = int(time.time()) - seconds
         table = self.get_msg_table_by_wxid(to_wxid)
         with self.conn:
@@ -190,8 +196,9 @@ class WeChatDB:
             ).fetchall()
             return [self.get_event(table, item) for item in data]
 
-    def get_image_msg(self, self_wxid: str, to_wxid: str, md5: str, seconds: int = 30, limit: int = 1) -> List[
-        Optional[Dict]]:
+    def get_image_msg(
+        self, self_wxid: str, to_wxid: str, md5: str, seconds: int = 30, limit: int = 1
+    ) -> List[Optional[Dict]]:
         data = []
         create_time = int(time.time()) - seconds
         table = self.get_msg_table_by_wxid(to_wxid)
@@ -217,8 +224,9 @@ class WeChatDB:
                     data.append(row)
         return [self.get_event(table, item) for item in data]
 
-    def get_file_msg(self, self_wxid: str, to_wxid: str, md5: str, seconds: int = 30, limit: int = 1) -> List[
-        Optional[Dict]]:
+    def get_file_msg(
+        self, self_wxid: str, to_wxid: str, md5: str, seconds: int = 30, limit: int = 1
+    ) -> List[Optional[Dict]]:
         data = []
         create_time = int(time.time()) - seconds
         table = self.get_msg_table_by_wxid(to_wxid)
@@ -245,7 +253,7 @@ class WeChatDB:
         return [self.get_event(table, item) for item in data]
 
     def get_recently_messages(
-            self, table: str, count: int = 10, order: str = "DESC"
+        self, table: str, count: int = 10, order: str = "DESC"
     ) -> List[Optional[Dict]]:
         with self.conn:
             rows = self.conn.execute(
@@ -263,7 +271,7 @@ class WeChatDB:
             return [self.get_event(table, row) for row in rows]
 
     def get_recently_messages2(
-            self, table: str, self_wxid: str, count: int = 10, order: str = "DESC"
+        self, table: str, self_wxid: str, count: int = 10, order: str = "DESC"
     ) -> List[Optional[Dict]]:
         with self.conn:
             rows = self.conn.execute(
@@ -308,7 +316,7 @@ class WeChatDB:
             return row[0]
 
     def handle(
-            self, events: Union[int, list] = 0, once: bool = False
+        self, events: Union[int, list] = 0, once: bool = False
     ) -> Callable[[Callable[..., Any]], None]:
         def wrapper(func: Callable[..., Any]) -> None:
             listen = self.event_emitter.on if not once else self.event_emitter.once
@@ -375,13 +383,11 @@ class WeChatDB:
         return f"<WeChatDB pid={repr(self.pid)} wxid={repr(self.wxid)} msg_db={repr(self.msg_db)}>"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     wechat_db = WeChatDB()
-
 
     @wechat_db.handle(ALL_MESSAGE)
     def _(wechat_db, event):
         print(event)
-
 
     wechat_db.run()

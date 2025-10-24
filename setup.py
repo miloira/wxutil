@@ -28,7 +28,7 @@ REQUIRED = [
     "pyee",
     "pycryptodome",
     "sqlcipher3-wheels",
-    "xmltodict"
+    "xmltodict",
 ]
 
 # What packages are optional?

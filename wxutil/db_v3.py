@@ -80,18 +80,18 @@ def decode_extra_buf(extra_buf_content: bytes):
                 off = extra_buf_content.index(key) + 4
             except:
                 pass
-            char = extra_buf_content[off: off + 1]
+            char = extra_buf_content[off : off + 1]
             off += 1
             if char == b"\x04":  # 四个字节的int，小端序
-                int_content = extra_buf_content[off: off + 4]
+                int_content = extra_buf_content[off : off + 4]
                 off += 4
                 int_content = int.from_bytes(int_content, "little")
                 res[trunk_head] = int_content
             elif char == b"\x18":  # utf-16字符串
-                length_content = extra_buf_content[off: off + 4]
+                length_content = extra_buf_content[off : off + 4]
                 off += 4
                 length_content = int.from_bytes(length_content, "little")
-                strContent = extra_buf_content[off: off + length_content]
+                strContent = extra_buf_content[off : off + length_content]
                 off += length_content
                 res[trunk_head] = strContent.decode("utf-16").rstrip("\x00")
         return {
@@ -165,7 +165,9 @@ class WeChatDB:
     def get_msg_db(self) -> str:
         try:
             with open(
-                    os.path.join(self.data_dir, r"Msg\Multi\config.ini"), "r", encoding="utf-8"
+                os.path.join(self.data_dir, r"Msg\Multi\config.ini"),
+                "r",
+                encoding="utf-8",
             ) as f:
                 return f.read()
         except Exception:
@@ -536,7 +538,7 @@ class WeChatDB:
         return data
 
     def get_recently_messages(
-            self, count: int = 10, order: str = "DESC"
+        self, count: int = 10, order: str = "DESC"
     ) -> List[Optional[Dict[str, Any]]]:
         with self.conn:
             rows = self.conn.execute(
@@ -552,7 +554,7 @@ class WeChatDB:
             return self.get_event(row)
 
     def handle(
-            self, events: Union[tuple, list] = (0, 0), once: bool = False
+        self, events: Union[tuple, list] = (0, 0), once: bool = False
     ) -> Callable[[Callable[..., Any]], None]:
         def wrapper(func: Callable[..., Any]) -> None:
             listen = self.event_emitter.on if not once else self.event_emitter.once
