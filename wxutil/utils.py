@@ -31,7 +31,7 @@ ReadProcessMemory = ctypes.windll.kernel32.ReadProcessMemory
 void_p = ctypes.c_void_p
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
+wechat_dump_rs = os.path.join(BASE_DIR, "tools", "wechat-dump-rs.exe")
 
 
 def get_wechat_install_path(version: int = 3) -> str:
