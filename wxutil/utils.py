@@ -32,7 +32,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 wechat_dump_rs = os.path.join(BASE_DIR, "wechat-dump-rs.exe")
 
 
-def get_wechat_install_path(version=3):
+def get_wechat_install_path(version: int = 3) -> str:
     if version == 3:
         reg_path = r"Software\Tencent\WeChat"
     elif version == 4:
@@ -52,7 +52,7 @@ def get_wechat_install_path(version=3):
             raise e
 
 
-def to_wechat_v3_version(value):
+def to_wechat_v3_version(value: int) -> str:
     """输入整数或十六进制字符串，返回 x.y.z.w 格式版本号"""
     a = (value >> 24) & 0xFF
     b = (value >> 16) & 0xFF
@@ -63,7 +63,7 @@ def to_wechat_v3_version(value):
     return f"{a}.{b}.{c}.{d}"
 
 
-def to_wechat_v4_version(value):
+def to_wechat_v4_version(value: int) -> str:
     version = hex(value)
     ver_str = version[5:]
     major = int(ver_str[0], 16)
@@ -73,16 +73,7 @@ def to_wechat_v4_version(value):
     return f"{major}.{minor}.{build}.{patch}"
 
 
-def to_wechat_version(version=3):
-    if version == 3:
-        return to_wechat_v3_version
-    elif version == 4:
-        return to_wechat_v4_version
-    else:
-        raise ValueError(f"Not support WeChat version: {version}")
-
-
-def get_wechat_version(version=3):
+def get_wechat_version(version: int = 3) -> str:
     if version == 3:
         reg_path = r"Software\Tencent\WeChat"
         to_wechat_version = to_wechat_v3_version
@@ -156,11 +147,11 @@ def get_exe_bit(file_path: str) -> int:
 
 
 def pattern_scan_all(
-    handle: int, pattern: bytes, *, return_multiple: bool = False, find_num: int = 100
+        handle: int, pattern: bytes, *, return_multiple: bool = False, find_num: int = 100
 ) -> Union[int, List[int]]:
     next_region = 0
     found = []
-    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2**32 else 0x7FFF0000
+    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2 ** 32 else 0x7FFF0000
     while next_region < user_space_limit:
         try:
             next_region, page_found = pymem.pattern.scan_pattern_page(
@@ -208,10 +199,10 @@ def get_info_file_path_base_wxid(h_process: int, wxid: str) -> Union[str, None]:
         buffer_len = 260
         array = ctypes.create_string_buffer(buffer_len)
         if (
-            ReadProcessMemory(
-                h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0
-            )
-            == 0
+                ReadProcessMemory(
+                    h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0
+                )
+                == 0
         ):
             return None
         raw = bytes(array).split(b"\\Msg")[0].split(b"\00")[-1]
@@ -285,7 +276,7 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
 
 def get_key(pid: int, db_path: str, addr_len: int) -> Union[str, None]:
     def read_key_bytes(
-        h_process: int, address: int, address_len: int = 8
+            h_process: int, address: int, address_len: int = 8
     ) -> Union[bytes, None]:
         array = ctypes.create_string_buffer(address_len)
         if ReadProcessMemory(h_process, void_p(address), array, address_len, 0) == 0:
@@ -430,7 +421,7 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
 
         # HMAC-SHA1 校验
         mac = hmac.new(mac_key, digestmod=hashlib.sha1)
-        mac.update(buf[start + offset : end - reserve + IV_SIZE])
+        mac.update(buf[start + offset: end - reserve + IV_SIZE])
         mac.update((cur_page + 1).to_bytes(4, byteorder="little"))
         hash_mac = mac.digest()
 
@@ -440,11 +431,11 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
             raise ValueError("Hash verification failed")
 
         # AES-256-CBC 解密
-        iv = buf[end - reserve : end - reserve + IV_SIZE]
+        iv = buf[end - reserve: end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset: end - reserve])
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve : end])  # 保留 reserve 部分
+        decrypted_buf.extend(buf[end - reserve: end])  # 保留 reserve 部分
 
     return bytes(decrypted_buf)
 
@@ -491,7 +482,7 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         end = start + PAGE_SIZE
 
         # 计算 HMAC-SHA512
-        mac_data = buf[start + offset : end - reserve + IV_SIZE]
+        mac_data = buf[start + offset: end - reserve + IV_SIZE]
         page_num_bytes = (cur_page + 1).to_bytes(4, byteorder="little")
         mac = hmac.new(mac_key, mac_data + page_num_bytes, hashlib.sha512).digest()
 
@@ -500,12 +491,12 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         if mac != buf[hash_mac_start_offset:hash_mac_end_offset]:
             raise ValueError(f"Hash verification failed on page {cur_page + 1}")
 
-        iv = buf[end - reserve : end - reserve + IV_SIZE]
+        iv = buf[end - reserve: end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset: end - reserve])
 
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve : end])
+        decrypted_buf.extend(buf[end - reserve: end])
 
     return bytes(decrypted_buf)
 
@@ -779,13 +770,13 @@ PROCESS_QUERY_INFORMATION = 0x0400
 kernel32 = ctypes.windll.kernel32
 
 
-# 打开目标进程
-def open_process(pid):
+def open_process(pid: int) -> int:
+    """打开目标进程"""
     return ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, pid)
 
 
-# 读取目标进程内存
-def read_process_memory(process_handle, address, size):
+def read_process_memory(process_handle: int, address: int, size: int) -> Optional[bytes]:
+    """读取目标进程内存"""
     buffer = ctypes.create_string_buffer(size)
     bytes_read = ctypes.c_size_t(0)
     success = ctypes.windll.kernel32.ReadProcessMemory(
@@ -796,13 +787,13 @@ def read_process_memory(process_handle, address, size):
     return buffer.raw
 
 
-# 获取所有内存区域
-def get_memory_regions(process_handle):
+def get_memory_regions(process_handle: int) -> List[Tuple[int, int]]:
+    """获取所有内存区域"""
     regions = []
     mbi = MEMORY_BASIC_INFORMATION()
     address = 0
     while ctypes.windll.kernel32.VirtualQueryEx(
-        process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
+            process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
     ):
         if mbi.State == MEM_COMMIT and mbi.Type == MEM_PRIVATE:
             regions.append((mbi.BaseAddress, mbi.RegionSize))
@@ -865,8 +856,7 @@ def search_memory_chunk(process_handle, base_address, region_size, encrypted, ru
 def get_aes_key(encrypted: bytes, pid: int) -> Any:
     process_handle = open_process(pid)
     if not process_handle:
-        print(f"无法打开进程 {pid}")
-        return ""
+        return Exception("无法打开进程：{pid}")
 
     # 编译YARA规则
     rules_key = r"""
@@ -908,13 +898,13 @@ def get_aes_key(encrypted: bytes, pid: int) -> Any:
 def dump_wechat_info_v4(encrypted: bytes, pid: int) -> bytes:
     process_handle = open_process(pid)
     if not process_handle:
-        raise RuntimeError(f"无法打开微信进程: {pid}")
+        raise Exception(f"无法打开微信进程: {pid}")
 
     result = get_aes_key(encrypted, pid)
     if isinstance(result, bytes):
         return result[:16]
     else:
-        raise RuntimeError("未找到 AES 密钥")
+        raise Exception("未找到 AES 密钥")
 
 
 def sort_template_files_by_date(template_files):
@@ -952,23 +942,22 @@ def sort_template_files_by_date(template_files):
 
 
 def find_key(
-    weixin_dir: Path,
-    version: int = 4,
-    xor_key_: int | None = None,
-    aes_key_: bytes | None = None,
+        weixin_dir: Path,
+        version: int = 4,
+        xor_key_: int | None = None,
+        aes_key_: bytes | None = None,
 ):
     """
     遍历目录下文件, 找到至多 16 个 (.*)_t.dat 文件,
     收集最后两位字节, 选择出现次数最多的两个字节.
     """
     assert version in [3, 4]
-    print(f"[+] 微信 {version}, 读取文件, 收集密钥...")
 
     # 查找所有 _t.dat 结尾的文件
     template_files = sort_template_files_by_date(list(weixin_dir.rglob("*_t.dat")))
 
     if not template_files:
-        raise RuntimeError("未找到模板文件")
+        raise Exception("未找到模板文件")
 
     # 收集所有文件最后两个字节
     last_bytes_list = []
@@ -980,11 +969,10 @@ def find_key(
                 last_bytes = f.read(2)
                 last_bytes_list.append(last_bytes)
         except Exception as e:
-            print(f"[-] 读取文件 {file} 失败: {e}")
             continue
 
     if not last_bytes_list:
-        raise RuntimeError("对于 XOR, 未能成功读取任何模板文件")
+        raise Exception("对于 XOR, 未能成功读取任何模板文件")
 
     # 使用 Counter 统计最常见的字节组合
     counter = Counter(last_bytes_list)
@@ -992,16 +980,15 @@ def find_key(
 
     x, y = most_common
     if (xor_key := x ^ 0xFF) == y ^ 0xD9:
-        print(f"[+] 找到 XOR 密钥: 0x{xor_key:02X}")
+        pass
     else:
-        raise RuntimeError("未能找到 XOR 密钥")
+        raise Exception("未能找到 XOR 密钥")
 
     if xor_key_:
         if xor_key_ == xor_key:
-            print(f"[+] 验证成功")
             return xor_key_, aes_key_
         else:
-            raise RuntimeError
+            raise Exception
 
     if version == 3:
         return xor_key, b"cfcd208495d565ef"
@@ -1022,18 +1009,16 @@ def find_key(
             ciphertext = f.read(16)
             break
     else:
-        raise RuntimeError("对于 AES, 未能成功读取任何模板文件")
+        raise Exception("对于 AES, 未能成功读取任何模板文件")
 
     try:
         pm = pymem.Pymem("Weixin.exe")
         pid = pm.process_id
         assert isinstance(pid, int)
     except:
-        raise RuntimeError("找不到微信进程")
+        raise Exception("找不到微信进程")
 
     aes_key = dump_wechat_info_v4(ciphertext, pid)
-    print(f"[+] 找到 AES 密钥: {aes_key}")
-
     return xor_key, aes_key
 
 
@@ -1143,12 +1128,7 @@ WECHAT_VERSION_OFFSET = {
 
 
 def modify_wechat_version(old_version: str, new_version: str) -> None:
-    try:
-        pm = pymem.Pymem("WeChat.exe")
-    except Exception as e:
-        print(f"{e}, 请确认微信已打开")
-        return
-
+    pm = pymem.Pymem("WeChat.exe")
     WeChatWinDll = pymem.process.module_from_name(
         pm.process_handle, "WeChatWin.dll"
     ).lpBaseOfDll
@@ -1159,10 +1139,7 @@ def modify_wechat_version(old_version: str, new_version: str) -> None:
         addr = WeChatWinDll + offset
         addr_value = pm.read_uint(addr)
         if addr_value == original_version_hex:
-            # Write the new version hex to the memory
             pm.write_uint(addr, new_version_hex)
-
-    print("微信版本修改成功")
 
 
 def version_to_hex(version: str) -> int:
@@ -1176,18 +1153,3 @@ def version_to_hex(version: str) -> int:
         result += f"{int(version_list[i]):02x}"
 
     return int(result, 16)
-
-
-if __name__ == "__main__":
-    modify_wechat_version("3.6.0.18", "3.9.12.15")
-    # print(read_info())
-    weixin_dir = "C:\\Users\\69012\\Documents\\WeChat Files\\wxid_g7leryvu7kqm22"
-    xor_key, aes_key = find_key(pathlib.Path(weixin_dir), version=3)
-    print(xor_key, aes_key)
-    data = decrypt_file(
-        r"C:\Users\69012\Documents\WeChat Files\wxid_g7leryvu7kqm22\FileStorage\MsgAttach\ecdbda0a87ecfbd437b436bff535d94a\Image\2025-09\0cda468757d07b271bdb3ce5b2222aa9.dat",
-        xor_key,
-        aes_key,
-    )
-    with open("1.png", "wb") as f:
-        f.write(data)
