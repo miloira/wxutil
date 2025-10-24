@@ -12,7 +12,7 @@ from shutil import rmtree
 from setuptools import find_packages, setup, Command
 
 # Package meta-data.
-NAME = "wxdb"
+NAME = "wxutil"
 DESCRIPTION = "wechat database manager."
 URL = "https://github.com/miloira/wxutil"
 EMAIL = "690126048@qq.com"
