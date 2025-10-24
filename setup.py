@@ -13,12 +13,12 @@ from setuptools import find_packages, setup, Command
 
 # Package meta-data.
 NAME = "wxutil"
-DESCRIPTION = "wechat database manager."
+DESCRIPTION = "wechat utils."
 URL = "https://github.com/miloira/wxutil"
 EMAIL = "690126048@qq.com"
 AUTHOR = "Msky"
 REQUIRES_PYTHON = ">=3.8.0"
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -28,8 +28,7 @@ REQUIRED = [
     "pyee",
     "pycryptodome",
     "sqlcipher3-wheels",
-    "xmltodict",
-    "yara-python",
+    "xmltodict"
 ]
 
 # What packages are optional?
