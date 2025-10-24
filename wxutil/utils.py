@@ -1024,7 +1024,7 @@ def find_key(
 CONFIG_FILE = "config.json"
 
 
-def read_key_from_config() -> tuple[int, bytes]:
+def read_key_from_config() -> Tuple[int, bytes]:
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
             key_dict = json.loads(f.read())
@@ -1043,20 +1043,6 @@ def store_key(xor_k: int, aes_k: bytes) -> None:
 
     with open(CONFIG_FILE, "w") as f:
         f.write(json.dumps(key_dict))
-
-
-def get_images_in_folder(self, folder_path):
-    if not self.root_dir or not folder_path.startswith(self.root_dir):
-        return []
-
-    relative_paths = []
-    for item in os.listdir(folder_path):
-        if item.lower().endswith(".dat"):
-            full_path = os.path.join(folder_path, item)
-            relative_path = os.path.relpath(full_path, self.root_dir)
-            relative_paths.append(relative_path)
-
-    return relative_paths
 
 
 def decrypt_file(file_path: str, xor_key: int, aes_key: bytes) -> bytes:
