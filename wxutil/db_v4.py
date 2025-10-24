@@ -334,7 +334,8 @@ class WeChatDB:
             )
             msg_table_max_local_id[msg_table] = current_max_local_id
 
-        logger.info("Start listening...")
+        logger.info(self.info)
+        logger.info("Message listening...")
         last_mtime = os.path.getmtime(self.msg_db_wal)
         while True:
             mtime = os.path.getmtime(self.msg_db_wal)
