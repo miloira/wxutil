@@ -54,7 +54,6 @@ class WeChatDB:
         self.conn = self.create_connection(rf"db_storage\message\{self.msg_db}")
         self.wxid = self.data_dir.rstrip("\\").split("\\")[-1][:-5]
         self.event_emitter = ExecutorEventEmitter()
-        self.wxid_table_mapping = {}
 
     def get_db_path(self, db_name: str) -> str:
         return os.path.join(self.data_dir, db_name)
