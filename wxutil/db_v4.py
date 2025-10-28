@@ -1,4 +1,3 @@
-from functools import lru_cache
 import os
 import time
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
@@ -154,18 +153,29 @@ class WeChatDB:
 
         return data
 
-    @lru_cache
-    def get_msg_table_by_wxid(self, wxid: str) -> str:
-        msg_tables = self.get_msg_tables()
-        for msg_table in msg_tables:
-            messages = self.get_recently_messages2(msg_table, wxid, 1)
-            if messages:
-                message = messages[0]
-                if message["room_wxid"] is None:
-                    self.wxid_table_mapping[message["from_wxid"]] = msg_table
-                else:
-                    self.wxid_table_mapping[message["room_wxid"]] = msg_table
-        return self.wxid_table_mapping.get(wxid)
+    def get_msg_table_by_wxid(
+        self, wxid: str, max_retry: int = 3, interval: int = 0.5
+    ) -> str:
+        if self.wxid_table_mapping.get(wxid) is not None:
+            return self.wxid_table_mapping[wxid]
+        retry = 0
+        while True:
+            if retry >= max_retry:
+                break
+            msg_tables = self.get_msg_tables()
+            for msg_table in msg_tables:
+                messages = self.get_recently_messages2(msg_table, wxid, 1)
+                if messages:
+                    message = messages[0]
+                    if message["room_wxid"] is None:
+                        self.wxid_table_mapping[message["from_wxid"]] = msg_table
+                    else:
+                        self.wxid_table_mapping[message["room_wxid"]] = msg_table
+            table = self.wxid_table_mapping.get(wxid)
+            if table is not None:
+                return table
+            retry += 1
+            time.sleep(interval)
 
     def get_text_msg(
         self,

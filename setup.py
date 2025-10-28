@@ -18,7 +18,7 @@ URL = "https://github.com/miloira/wxutil"
 EMAIL = "690126048@qq.com"
 AUTHOR = "Msky"
 REQUIRES_PYTHON = ">=3.8.0"
-VERSION = "0.0.8"
+VERSION = "0.0.9"
 
 # What packages are required for this module to be executed?
 REQUIRED = [
@@ -30,7 +30,7 @@ REQUIRED = [
     "pymem",
     "sqlcipher3-wheels",
     "xmltodict",
-    "zstandard"
+    "zstandard",
 ]
 
 # What packages are optional?

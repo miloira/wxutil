@@ -149,11 +149,11 @@ def get_exe_bit(file_path: str) -> int:
 
 
 def pattern_scan_all(
-        handle: int, pattern: bytes, *, return_multiple: bool = False, find_num: int = 100
+    handle: int, pattern: bytes, *, return_multiple: bool = False, find_num: int = 100
 ) -> Union[int, List[int]]:
     next_region = 0
     found = []
-    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2 ** 32 else 0x7FFF0000
+    user_space_limit = 0x7FFFFFFF0000 if sys.maxsize > 2**32 else 0x7FFF0000
     while next_region < user_space_limit:
         try:
             next_region, page_found = pymem.pattern.scan_pattern_page(
@@ -201,10 +201,10 @@ def get_info_file_path_base_wxid(h_process: int, wxid: str) -> Union[str, None]:
         buffer_len = 260
         array = ctypes.create_string_buffer(buffer_len)
         if (
-                ReadProcessMemory(
-                    h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0
-                )
-                == 0
+            ReadProcessMemory(
+                h_process, void_p(addr - buffer_len + 50), array, buffer_len, 0
+            )
+            == 0
         ):
             return None
         raw = bytes(array).split(b"\\Msg")[0].split(b"\00")[-1]
@@ -278,7 +278,7 @@ def get_info_file_path(wxid: str = "all") -> Union[str, None]:
 
 def get_key(pid: int, db_path: str, addr_len: int) -> Union[str, None]:
     def read_key_bytes(
-            h_process: int, address: int, address_len: int = 8
+        h_process: int, address: int, address_len: int = 8
     ) -> Union[bytes, None]:
         array = ctypes.create_string_buffer(address_len)
         if ReadProcessMemory(h_process, void_p(address), array, address_len, 0) == 0:
@@ -423,7 +423,7 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
 
         # HMAC-SHA1 校验
         mac = hmac.new(mac_key, digestmod=hashlib.sha1)
-        mac.update(buf[start + offset: end - reserve + IV_SIZE])
+        mac.update(buf[start + offset : end - reserve + IV_SIZE])
         mac.update((cur_page + 1).to_bytes(4, byteorder="little"))
         hash_mac = mac.digest()
 
@@ -433,11 +433,11 @@ def decrypt_db_file_v3(path: str, pkey: str) -> bytes:
             raise ValueError("Hash verification failed")
 
         # AES-256-CBC 解密
-        iv = buf[end - reserve: end - reserve + IV_SIZE]
+        iv = buf[end - reserve : end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset: end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve: end])  # 保留 reserve 部分
+        decrypted_buf.extend(buf[end - reserve : end])  # 保留 reserve 部分
 
     return bytes(decrypted_buf)
 
@@ -484,7 +484,7 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         end = start + PAGE_SIZE
 
         # 计算 HMAC-SHA512
-        mac_data = buf[start + offset: end - reserve + IV_SIZE]
+        mac_data = buf[start + offset : end - reserve + IV_SIZE]
         page_num_bytes = (cur_page + 1).to_bytes(4, byteorder="little")
         mac = hmac.new(mac_key, mac_data + page_num_bytes, hashlib.sha512).digest()
 
@@ -493,12 +493,12 @@ def decrypt_db_file_v4(path: str, pkey: str) -> bytes:
         if mac != buf[hash_mac_start_offset:hash_mac_end_offset]:
             raise ValueError(f"Hash verification failed on page {cur_page + 1}")
 
-        iv = buf[end - reserve: end - reserve + IV_SIZE]
+        iv = buf[end - reserve : end - reserve + IV_SIZE]
         cipher = AES.new(key, AES.MODE_CBC, iv)
-        decrypted_page = cipher.decrypt(buf[start + offset: end - reserve])
+        decrypted_page = cipher.decrypt(buf[start + offset : end - reserve])
 
         decrypted_buf.extend(decrypted_page)
-        decrypted_buf.extend(buf[end - reserve: end])
+        decrypted_buf.extend(buf[end - reserve : end])
 
     return bytes(decrypted_buf)
 
@@ -771,7 +771,7 @@ def open_process(pid: int) -> int:
 
 
 def read_process_memory(
-        process_handle: int, address: int, size: int
+    process_handle: int, address: int, size: int
 ) -> Optional[bytes]:
     """读取目标进程内存"""
     buffer = ctypes.create_string_buffer(size)
@@ -790,7 +790,7 @@ def get_memory_regions(process_handle: int) -> List[Tuple[int, int]]:
     mbi = MEMORY_BASIC_INFORMATION()
     address = 0
     while ctypes.windll.kernel32.VirtualQueryEx(
-            process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
+        process_handle, ctypes.c_void_p(address), ctypes.byref(mbi), ctypes.sizeof(mbi)
     ):
         if mbi.State == MEM_COMMIT and mbi.Type == MEM_PRIVATE:
             regions.append((mbi.BaseAddress, mbi.RegionSize))
@@ -941,10 +941,10 @@ def sort_template_files_by_date(template_files):
 
 
 def find_key(
-        weixin_dir: pathlib.Path,
-        version: int = 4,
-        xor_key_: Optional[int] = None,
-        aes_key_: Optional[bytes] = None,
+    weixin_dir: pathlib.Path,
+    version: int = 4,
+    xor_key_: Optional[int] = None,
+    aes_key_: Optional[bytes] = None,
 ):
     """
     遍历目录下文件, 找到至多 16 个 (.*)_t.dat 文件,
