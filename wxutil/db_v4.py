@@ -154,7 +154,7 @@ class WeChatDB:
 
         return data
 
-    def get_msg_table_by_wxid(self, wxid: str) -> str:
+    def get_msg_table(self, wxid: str) -> str:
         return f"Msg_{hashlib.md5(wxid.encode()).hexdigest()}"
 
     def get_text_msg(
@@ -166,7 +166,7 @@ class WeChatDB:
         limit: int = 1,
     ) -> List[Optional[Dict]]:
         create_time = int(time.time()) - seconds
-        table = self.get_msg_table_by_wxid(to_wxid)
+        table = self.get_msg_table(to_wxid)
         with self.conn:
             data = self.conn.execute(
                 """
@@ -191,7 +191,7 @@ class WeChatDB:
     ) -> List[Optional[Dict]]:
         data = []
         create_time = int(time.time()) - seconds
-        table = self.get_msg_table_by_wxid(to_wxid)
+        table = self.get_msg_table(to_wxid)
         with self.conn:
             rows = self.conn.execute(
                 """
@@ -219,7 +219,7 @@ class WeChatDB:
     ) -> List[Optional[Dict]]:
         data = []
         create_time = int(time.time()) - seconds
-        table = self.get_msg_table_by_wxid(to_wxid)
+        table = self.get_msg_table(to_wxid)
         with self.conn:
             rows = self.conn.execute(
                 """
