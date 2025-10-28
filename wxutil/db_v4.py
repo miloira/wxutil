@@ -1,7 +1,9 @@
+import glob
 import hashlib
 import os
+import re
 import time
-from typing import Any, Callable, Dict, List, NoReturn, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, NoReturn
 
 from pyee.executor import ExecutorEventEmitter
 from sqlcipher3 import dbapi2 as sqlite
@@ -58,14 +60,20 @@ class WeChatDB:
         return os.path.join(self.data_dir, db_name)
 
     def get_msg_db(self) -> str:
-        msg0_file = os.path.join(self.data_dir, r"db_storage\message\message_0.db")
-        msg1_file = os.path.join(self.data_dir, r"db_storage\message\message_1.db")
-        if not os.path.exists(msg1_file):
-            return "message_0.db"
-        if os.path.getmtime(msg0_file) > os.path.getmtime(msg1_file):
-            return "message_0.db"
-        else:
-            return "message_1.db"
+        db_files = glob.glob(
+            os.path.join(
+                os.path.join(self.data_dir, "db_storage", "message"), "message_*.db"
+            )
+        )
+        db_files = [
+            db_file for db_file in db_files if re.match(r".*message_\d+\.db$", db_file)
+        ]
+
+        if not db_files:
+            raise Exception("No message database found.")
+
+        latest_file = max(db_files, key=os.path.getmtime)
+        return os.path.basename(latest_file)
 
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name), check_same_thread=False)
