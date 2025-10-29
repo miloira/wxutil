@@ -347,8 +347,8 @@ class WeChatDB:
             """,
                 (id,),
             ).fetchone()
-            if not row:
-                return
+            if row is None:
+                return None
             return row[0]
 
     def get_contacts(self) -> List:
@@ -369,16 +369,15 @@ class WeChatDB:
             AND verify_flag = 0;
             """).fetchall()
             for row in rows:
-                contacts.append(
-                    {
-                        "wxid": row[0],
-                        "account": row[1],
-                        "nickname": row[2],
-                        "remark": row[3],
-                        "avatar": row[4],
-                        "extra_buf": row[5],
-                    }
-                )
+                contact = {
+                    "wxid": row[0],
+                    "account": row[1],
+                    "nickname": row[2],
+                    "remark": row[3],
+                    "avatar": row[4],
+                    "extra_buf": row[5],
+                }
+                contacts.append(contact)
         return contacts
 
     def get_contact(self, wxid: str) -> Optional[Dict]:
@@ -402,9 +401,9 @@ class WeChatDB:
                 (wxid,),
             ).fetchone()
             if row is None:
-                return
+                return None
 
-            return {
+            contact = {
                 "wxid": row[0],
                 "account": row[1],
                 "nickname": row[2],
@@ -412,6 +411,7 @@ class WeChatDB:
                 "avatar": row[4],
                 "extra_buf": row[5],
             }
+            return contact
 
     def get_rooms(self) -> List[Dict]:
         conn = self.create_connection("db_storage/contact/contact.db")
@@ -474,7 +474,7 @@ class WeChatDB:
                 (room_wxid,),
             ).fetchone()
             if row is None:
-                return
+                return None
             room = {
                 "wxid": row[0],
                 "nickname": row[1],
@@ -543,7 +543,7 @@ class WeChatDB:
                 (id,),
             ).fetchone()
             if row is None:
-                return
+                return None
             label = {"id": row[0], "name": row[1]}
             return label
 
