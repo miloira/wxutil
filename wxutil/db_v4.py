@@ -249,7 +249,6 @@ class WeChatDB:
                 """.format(table),
                 (self_wxid, f"%{content}%", create_time, limit),
             ).fetchall()
-            print(data)
             return [self.get_event(table, item) for item in data]
 
     def get_image_msg(
@@ -323,25 +322,6 @@ class WeChatDB:
                 LIMIT ?;
                 """.format(table, order),
                 (count,),
-            ).fetchall()
-            return [self.get_event(table, row) for row in rows]
-
-    def get_recently_messages2(
-        self, table: str, self_wxid: str, count: int = 10, order: str = "DESC"
-    ) -> List[Optional[Dict]]:
-        with self.conn:
-            rows = self.conn.execute(
-                """
-                SELECT 
-                    m.*,
-                    n.user_name AS sender
-                FROM {} AS m
-                LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
-                WHERE n.user_name = ?
-                ORDER BY m.local_id {}
-                LIMIT ?;
-                """.format(table, order),
-                (self_wxid, count),
             ).fetchall()
             return [self.get_event(table, row) for row in rows]
 
