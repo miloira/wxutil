@@ -442,6 +442,7 @@ class WeChatDB:
             SELECT
                 contact.username,
                 contact.nick_name,
+                contact.remark,
                 contact.small_head_url,
                 contact.extra_buffer,
                 chat_room.owner,
@@ -451,22 +452,24 @@ class WeChatDB:
                 chat_room_info_detail.chat_room_status_,
                 chat_room_info_detail.xml_announcement_,
                 chat_room_info_detail.ext_buffer_
-             FROM chat_room 
+             FROM chat_room
              LEFT JOIN contact on contact.username = chat_room.username
-             LEFT JOIN chat_room_info_detail on chat_room_info_detail.username_ = chat_room.username;""").fetchall()
+             LEFT JOIN chat_room_info_detail on chat_room_info_detail.username_ = chat_room.username
+             WHERE contact.is_in_chat_room != 2;""").fetchall()
             for row in rows:
                 room = {
                     "wxid": row[0],
                     "nickname": row[1],
-                    "avatar": row[2],
-                    "extra_buffer": row[3],
-                    "owner": row[4],
-                    "announcement_content": row[5],
-                    "announcement_editor": row[6],
-                    "announcement_publish_time": row[7],
-                    "announcement_xml": row[9],
-                    "status": row[8],
-                    "ext_buffer": row[10],
+                    "remark": row[2],
+                    "avatar": row[3],
+                    "extra_buffer": row[4],
+                    "owner": row[5],
+                    "announcement_content": row[6],
+                    "announcement_editor": row[7],
+                    "announcement_publish_time": row[8],
+                    "announcement_xml": row[10],
+                    "status": row[9],
+                    "ext_buffer": row[11],
                 }
                 rooms.append(room)
         return rooms
@@ -479,6 +482,7 @@ class WeChatDB:
             SELECT
                 contact.username,
                 contact.nick_name,
+                contact.remark,
                 contact.small_head_url,
                 contact.extra_buffer,
                 chat_room.owner,
@@ -491,7 +495,8 @@ class WeChatDB:
              FROM chat_room 
              LEFT JOIN contact on contact.username = chat_room.username
              LEFT JOIN chat_room_info_detail on chat_room_info_detail.username_ = chat_room.username
-             WHERE chat_room.username = ?;""",
+             WHERE contact.is_in_chat_room != 2 
+             AND chat_room.username = ?;""",
                 (room_wxid,),
             ).fetchone()
             if row is None:
@@ -499,16 +504,17 @@ class WeChatDB:
             room = {
                 "wxid": row[0],
                 "nickname": row[1],
-                "avatar": row[2],
-                "extra_buffer": row[3],
+                "remark": row[2],
+                "avatar": row[3],
+                "extra_buffer": row[4],
                 "member_list": self.get_room_members(room_wxid),
-                "owner": row[4],
-                "announcement_content": row[5],
-                "announcement_editor": row[6],
-                "announcement_publish_time": row[7],
-                "announcement_xml": row[9],
-                "status": row[8],
-                "ext_buffer": row[10],
+                "owner": row[5],
+                "announcement_content": row[6],
+                "announcement_editor": row[7],
+                "announcement_publish_time": row[8],
+                "announcement_xml": row[10],
+                "status": row[9],
+                "ext_buffer": row[11],
             }
             return room
 
@@ -525,6 +531,7 @@ class WeChatDB:
             FROM contact, chat_room, chatroom_member
             WHERE chatroom_member.room_id = chat_room.rowid 
             AND chatroom_member.member_id = contact.rowid
+            AND contact.is_in_chat_room != 2
             AND chat_room.username = ?;
             """,
                 (room_wxid,),
