@@ -402,7 +402,6 @@ class WeChatDB:
             ).fetchone()
             if row is None:
                 return None
-
             contact = {
                 "wxid": row[0],
                 "account": row[1],
