@@ -135,7 +135,6 @@ class WeChatDB:
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name), check_same_thread=False)
         db_key = get_db_key(self.key, self.get_db_path(db_name), "4")
-        print(self.get_db_path(db_name), db_key)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
         conn.execute(f"PRAGMA cipher_page_size = 4096;")
         conn.execute(f"PRAGMA kdf_iter = 256000;")
