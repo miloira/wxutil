@@ -43,6 +43,64 @@ PAT_MESSAGE = 266287972401
 GROUP_ANNOUNCEMENT_MESSAGE = 373662154801
 
 
+def decode_extra_buf(extra_buf_content: bytes):
+    data = {
+        "country": "",
+        "province": "",
+        "city": "",
+        "signature": "",
+        "phone": "",
+        "sex": "",
+    }
+    if not extra_buf_content:
+        return data
+    trunk_name = {
+        b"\x46\xcf\x10\xc4": "个性签名",
+        b"\xa4\xd9\x02\x4a": "国家",
+        b"\xe2\xea\xa8\xd1": "省份",
+        b"\x1d\x02\x5b\xbf": "市区",
+        # b"\x81\xAE\x19\xB4": "朋友圈背景url",
+        # b"\xF9\x17\xBC\xC0": "公司名称",
+        # b"\x4E\xB9\x6D\x85": "企业微信属性",
+        # b"\x0E\x71\x9F\x13": "备注图片",
+        b"\x75\x93\x78\xad": "手机号",
+        b"\x74\x75\x2c\x06": "性别",
+    }
+    res = {"手机号": ""}
+    off = 0
+    try:
+        for key in trunk_name:
+            trunk_head = trunk_name[key]
+            try:
+                off = extra_buf_content.index(key) + 4
+            except:
+                pass
+            char = extra_buf_content[off : off + 1]
+            off += 1
+            if char == b"\x04":  # 四个字节的int，小端序
+                int_content = extra_buf_content[off : off + 4]
+                off += 4
+                int_content = int.from_bytes(int_content, "little")
+                res[trunk_head] = int_content
+            elif char == b"\x18":  # utf-16字符串
+                length_content = extra_buf_content[off : off + 4]
+                off += 4
+                length_content = int.from_bytes(length_content, "little")
+                strContent = extra_buf_content[off : off + length_content]
+                off += length_content
+                res[trunk_head] = strContent.decode("utf-16").rstrip("\x00")
+        return {
+            "country": res["国家"],
+            "province": res["省份"],
+            "city": res["市区"],
+            "signature": res["个性签名"],
+            "phone": res["手机号"],
+            "sex": res["性别"],
+        }
+    except Exception:
+        return data
+
+
 class WeChatDB:
     def __init__(self, pid: Optional[int] = None) -> None:
         self.info = get_wx_info("v4", pid)
@@ -77,6 +135,7 @@ class WeChatDB:
     def create_connection(self, db_name: str) -> sqlite.Connection:
         conn = sqlite.connect(self.get_db_path(db_name), check_same_thread=False)
         db_key = get_db_key(self.key, self.get_db_path(db_name), "4")
+        print(self.get_db_path(db_name), db_key)
         conn.execute(f"PRAGMA key = \"x'{db_key}'\";")
         conn.execute(f"PRAGMA cipher_page_size = 4096;")
         conn.execute(f"PRAGMA kdf_iter = 256000;")
@@ -191,6 +250,7 @@ class WeChatDB:
                 """.format(table),
                 (self_wxid, f"%{content}%", create_time, limit),
             ).fetchall()
+            print(data)
             return [self.get_event(table, item) for item in data]
 
     def get_image_msg(
@@ -293,7 +353,7 @@ class WeChatDB:
                 name
             FROM sqlite_master
             WHERE type='table'
-            AND name LIKE 'Msg%';
+            AND name LIKE 'Msg_%';
             """).fetchall()
             return [row[0] for row in rows]
 
@@ -311,6 +371,202 @@ class WeChatDB:
             if not row:
                 return
             return row[0]
+
+    def get_contacts(self) -> List:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        contacts = []
+        with conn:
+            rows = conn.execute("""
+            SELECT 
+                username, 
+                alias,
+                nick_name, 
+                remark,
+                small_head_url as avatar,
+                extra_buffer
+            FROM contact
+            WHERE local_type in (1, 5) 
+            AND flag = 3
+            AND verify_flag = 0;
+            """).fetchall()
+            for row in rows:
+                contacts.append(
+                    {
+                        "wxid": row[0],
+                        "account": row[1],
+                        "nickname": row[2],
+                        "remark": row[3],
+                        "avatar": row[4],
+                        "extra_buf": row[5],
+                    }
+                )
+        return contacts
+
+    def get_contact(self, wxid: str) -> Optional[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        with conn:
+            row = conn.execute(
+                """
+            SELECT 
+                username, 
+                alias,
+                nick_name, 
+                remark,
+                small_head_url,
+                extra_buffer
+            FROM contact
+            WHERE local_type in (1, 5) 
+            AND flag = 3
+            AND verify_flag = 0
+            AND username = ?;
+            """,
+                (wxid,),
+            ).fetchone()
+            if row is None:
+                return
+
+            return {
+                "wxid": row[0],
+                "account": row[1],
+                "nickname": row[2],
+                "remark": row[3],
+                "avatar": row[4],
+                "extra_buf": row[5],
+            }
+
+    def get_rooms(self) -> List[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        rooms = []
+        with conn:
+            rows = conn.execute("""
+            SELECT
+                contact.username,
+                contact.nick_name,
+                contact.small_head_url,
+                contact.extra_buffer,
+                chat_room.owner,
+                chat_room_info_detail.announcement_,
+                chat_room_info_detail.announcement_editor_,
+                chat_room_info_detail.announcement_publish_time_,
+                chat_room_info_detail.chat_room_status_,
+                chat_room_info_detail.xml_announcement_,
+                chat_room_info_detail.ext_buffer_
+             FROM chat_room 
+             LEFT JOIN contact on contact.username = chat_room.username
+             LEFT JOIN chat_room_info_detail on chat_room_info_detail.username_ = chat_room.username;""").fetchall()
+            for row in rows:
+                room = {
+                    "wxid": row[0],
+                    "nickname": row[1],
+                    "avatar": row[2],
+                    "extra_buffer": row[3],
+                    "owner": row[4],
+                    "announcement_content": row[5],
+                    "announcement_editor": row[6],
+                    "announcement_publish_time": row[7],
+                    "announcement_xml": row[9],
+                    "status": row[8],
+                    "ext_buffer": row[10],
+                }
+                rooms.append(room)
+        return rooms
+
+    def get_room(self, room_wxid: str) -> Optional[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        with conn:
+            row = conn.execute(
+                """
+            SELECT
+                contact.username,
+                contact.nick_name,
+                contact.small_head_url,
+                contact.extra_buffer,
+                chat_room.owner,
+                chat_room_info_detail.announcement_,
+                chat_room_info_detail.announcement_editor_,
+                chat_room_info_detail.announcement_publish_time_,
+                chat_room_info_detail.chat_room_status_,
+                chat_room_info_detail.xml_announcement_,
+                chat_room_info_detail.ext_buffer_
+             FROM chat_room 
+             LEFT JOIN contact on contact.username = chat_room.username
+             LEFT JOIN chat_room_info_detail on chat_room_info_detail.username_ = chat_room.username
+             WHERE chat_room.username = ?;""",
+                (room_wxid,),
+            ).fetchone()
+            if row is None:
+                return
+            room = {
+                "wxid": row[0],
+                "nickname": row[1],
+                "avatar": row[2],
+                "extra_buffer": row[3],
+                "member_list": self.get_room_members(room_wxid),
+                "owner": row[4],
+                "announcement_content": row[5],
+                "announcement_editor": row[6],
+                "announcement_publish_time": row[7],
+                "announcement_xml": row[9],
+                "status": row[8],
+                "ext_buffer": row[10],
+            }
+            return room
+
+    def get_room_members(self, room_wxid: str) -> List[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        room_members = []
+        with conn:
+            rows = conn.execute(
+                """
+            SELECT 
+                contact.username, 
+                contact.nick_name, 
+                contact.small_head_url
+            FROM contact, chat_room, chatroom_member
+            WHERE chatroom_member.room_id = chat_room.rowid 
+            AND chatroom_member.member_id = contact.rowid
+            AND chat_room.username = ?;
+            """,
+                (room_wxid,),
+            ).fetchall()
+            for row in rows:
+                room_members.append(
+                    {
+                        "wxid": row[0],
+                        "nickname": row[1],
+                        "avatar": row[2],
+                    }
+                )
+        return room_members
+
+    def get_labels(self) -> List[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        labels = []
+        with conn:
+            rows = conn.execute("""
+                SELECT 
+                    label_id_, label_name_
+                FROM contact_label;
+                """).fetchall()
+            for row in rows:
+                labels.append({"id": row[0], "name": row[1]})
+        return labels
+
+    def get_label(self, id) -> Optional[Dict]:
+        conn = self.create_connection("db_storage/contact/contact.db")
+        with conn:
+            row = conn.execute(
+                """
+                SELECT 
+                    label_id_, label_name_
+                FROM contact_label
+                WHERE label_id_ = ?;""",
+                (id,),
+            ).fetchone()
+            if row is None:
+                return
+            label = {"id": row[0], "name": row[1]}
+            return label
 
     def handle(
         self, events: Union[int, list] = 0, once: bool = False
