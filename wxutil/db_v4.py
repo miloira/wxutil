@@ -228,6 +228,7 @@ class WeChatDB:
         to_wxid: str,
         content: str,
         seconds: int = 30,
+        decompress_limit: int = 10,
         limit: int = 1,
     ) -> List[Optional[Dict]]:
         create_time = int(time.time()) - seconds
@@ -249,6 +250,27 @@ class WeChatDB:
                 """.format(table),
                 (self_wxid, f"%{content}%", create_time, limit),
             ).fetchall()
+            if not data:
+                rows = self.conn.execute(
+                    """
+                    SELECT 
+                        m.*,
+                        n.user_name AS sender
+                    FROM {} AS m
+                    LEFT JOIN Name2Id AS n ON m.real_sender_id = n.rowid
+                    WHERE m.local_type = 1 
+                    AND n.user_name = ? 
+                    AND m.create_time > ?
+                    ORDER BY m.local_id DESC
+                    LIMIT ?;
+                    """.format(table),
+                    (self_wxid, create_time, decompress_limit),
+                ).fetchall()
+                for row in rows:
+                    msg = decompress(row[-6])
+                    if content in msg:
+                        data.append(row)
+                data = data[:decompress_limit]
             return [self.get_event(table, item) for item in data]
 
     def get_image_msg(
